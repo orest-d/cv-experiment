@@ -8,14 +8,16 @@ use opencv::videoio;
 const CHARACTERISTICS_BUFFER_SIZE: usize = 640 * 480;
 const REGION_SIZE: usize = 10;
 const REGIONLINE_BUFFER_SIZE: usize = (640 / REGION_SIZE) * (480 / REGION_SIZE);
+const HISTOGRAM_BINS: usize = 512;
+const REDUCED_HISTOGRAM_BINS: usize = 100;
 
-pub struct Histogram {
+pub struct AngleHistogram {
     pub bins: [usize; 256],
 }
 
-impl Histogram {
-    pub fn new() -> Histogram {
-        Histogram { bins: [0; 256] }
+impl AngleHistogram {
+    pub fn new() -> AngleHistogram {
+        AngleHistogram { bins: [0; 256] }
     }
     pub fn add(&mut self, angle: u8, weight: i32) {
         self.bins[angle as usize] += weight as usize;
@@ -74,12 +76,89 @@ impl Histogram {
     }
 }
 
+pub struct Histogram {
+    pub bins: [u32; HISTOGRAM_BINS],
+    pub reduced_bins: [u32; REDUCED_HISTOGRAM_BINS],
+    pub min: f32,
+    pub max: f32,
+    pub initialized: bool,
+}
+
+impl Histogram {
+    pub fn new() -> Histogram {
+        Histogram {
+            bins: [0; HISTOGRAM_BINS],
+            reduced_bins: [0; REDUCED_HISTOGRAM_BINS],
+            min: 0.0,
+            max: 0.0,
+            initialized: false,
+        }
+    }
+    pub fn calibrate(&mut self, value: f32) {
+        if self.initialized {
+            if value < self.min {
+                self.min = value;
+            }
+            if value > self.max {
+                self.max = value;
+            }
+        } else {
+            self.min = value;
+            self.max = value;
+            self.initialized = true;
+        }
+    }
+    pub fn add(&mut self, value: f32, weight: u32) {
+        if value>=self.min && value<=self.max{
+            let index =
+                (((HISTOGRAM_BINS - 1) as f32) * (value - self.min) / (self.max - self.min)) as usize;
+            self.bins[index] += weight;
+        }
+    }
+    pub fn max_bin_value(&self) -> u32 {
+        *self.bins.iter().max().unwrap()
+    }
+
+    pub fn resize_to(&mut self, size: u32) {
+        let max = self.max_bin_value();
+        if max > 0 {
+            for bin in self.bins.iter_mut() {
+                *bin = (*bin * size) / max;
+            }
+        }
+    }
+
+    pub fn reduced_max(&self) -> u32 {
+        *self.reduced_bins.iter().max().unwrap()
+    }
+
+    pub fn reduced_resize_to(&mut self, size: u32) {
+        let max = self.reduced_max();
+        if max > 0 {
+            for bin in self.reduced_bins.iter_mut() {
+                *bin = (*bin * size) / max;
+            }
+        }
+    }
+
+    pub fn distance_histogram(&mut self) {
+        for i in 0..(REDUCED_HISTOGRAM_BINS-1) {
+            for j in 0..(HISTOGRAM_BINS-1) {
+                let index = i + j;
+                if index >= HISTOGRAM_BINS {
+                    break;
+                }
+                self.reduced_bins[i] += self.bins[index] * self.bins[j];
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Characteristics {
     pub angle: u8,
     pub intensity: u8,
 }
-
 
 pub struct CharacteristicsGrid {
     pub cols: usize,
@@ -118,25 +197,37 @@ impl RegionLineGrid {
         self.data[x * self.cols + y] = value
     }
 
-    fn average_k(&self) -> (f32, f32){
+    fn average_k(&self) -> (f32, f32) {
         let mut sumw = 0.0f32;
         let mut sumk = 0.0f32;
         let mut sumkk = 0.0f32;
-        for rline in self.data.iter(){
-            if let RegionLine::LineFX{x:x,y:y,k:k,weight:w}=rline{
-                sumk+= (*w * *k);
-                sumkk+= (*w * *k * *k);
-                sumw+= *w;
+        for rline in self.data.iter() {
+            if let RegionLine::LineFX {
+                x: x,
+                y: y,
+                k: k,
+                weight: w,
+            } = rline
+            {
+                sumk += (*w * *k);
+                sumkk += (*w * *k * *k);
+                sumw += *w;
             }
-            if let RegionLine::LineFY{x:x,y:y,k:k,weight:w}=rline{
-                sumk+= (*w * *k);
-                sumkk+= (*w * *k * *k);
-                sumw+= *w;
+            if let RegionLine::LineFY {
+                x: x,
+                y: y,
+                k: k,
+                weight: w,
+            } = rline
+            {
+                sumk += (*w * *k);
+                sumkk += (*w * *k * *k);
+                sumw += *w;
             }
         }
-        let avgk = sumk/sumw;
-        let avgkk = sumkk/sumw;
-        let sigma = (avgkk-avgk*avgk).sqrt();
+        let avgk = sumk / sumw;
+        let avgkk = sumkk / sumw;
+        let sigma = (avgkk - avgk * avgk).sqrt();
         (avgk, sigma)
     }
 }
@@ -249,8 +340,16 @@ impl CharacteristicsGrid {
         let mut grid = RegionLineGrid::new(self.rows / REGION_SIZE, self.cols / REGION_SIZE);
         for j in 0..self.rows / REGION_SIZE {
             for i in 0..self.cols / REGION_SIZE {
-                let regionline = self.evaluate_region(i*REGION_SIZE, j*REGION_SIZE, REGION_SIZE, REGION_SIZE, mean_angle, delta_angle, weight_threshold);
-                grid.set(i,j,regionline);
+                let regionline = self.evaluate_region(
+                    i * REGION_SIZE,
+                    j * REGION_SIZE,
+                    REGION_SIZE,
+                    REGION_SIZE,
+                    mean_angle,
+                    delta_angle,
+                    weight_threshold,
+                );
+                grid.set(i, j, regionline);
             }
         }
         grid
@@ -308,7 +407,7 @@ fn convolution(cols: usize, rows: usize, source: &[u8], destination: &mut [u8]) 
     let a55 = 4 * cols + 4usize;
     let pi = std::f64::consts::PI;
 
-    let mut histogram = Histogram::new();
+    let mut histogram = AngleHistogram::new();
 
     for i in 0usize..(rows - n) as usize {
         for j in 0usize..(cols - n) as usize {
@@ -452,54 +551,159 @@ fn run() -> opencv::Result<()> {
         let mut clone_gray = vec![0u8; len];
         clone_gray[..len].copy_from_slice(slice);
         let grid = convolution(cols as usize, rows as usize, &clone_gray[..len], slice);
-        println!("*************************************** K {:?}", grid.average_k());
+        println!(
+            "*************************************** K {:?}",
+            grid.average_k()
+        );
         let mut colored = core::Mat::default()?;
         imgproc::cvt_color(&gray, &mut colored, imgproc::COLOR_GRAY2BGR, 0)?;
-//        let color = core::Scalar::new(0.0,0.0,255.0,0.0);
-//        imgproc::line(&mut colored,core::Point::new(100,200),core::Point::new(200,300),color,3,8,0);
-//        imgproc::rectangle(&mut colored,core::Rect::new(100,200,30,30),color,3,0,0);
-        for rline in grid.data.iter(){
-            if let RegionLine::LineFX{x:x,y:y,k:k,weight:w}=rline{
-                let color = core::Scalar::new(0.0,0.0,255.0,0.0);
-                let color1 = core::Scalar::new(255.0,0.0,255.0,0.0);
-                let x1 = *x+10.0;
-                let y1 = *y - (x-x1)*(*k);
-                imgproc::line(&mut colored,core::Point::new(*x as i32, *y as i32),core::Point::new(x1 as i32,y1 as i32),color1,1,8,0);
-                imgproc::rectangle(&mut colored,core::Rect::new(*x as i32 -1,*y as i32 -1,3,3),color,1,1,0);
+        //        let color = core::Scalar::new(0.0,0.0,255.0,0.0);
+        //        imgproc::line(&mut colored,core::Point::new(100,200),core::Point::new(200,300),color,3,8,0);
+        //        imgproc::rectangle(&mut colored,core::Rect::new(100,200,30,30),color,3,0,0);
+        for rline in grid.data.iter() {
+            if let RegionLine::LineFX {
+                x: x,
+                y: y,
+                k: k,
+                weight: w,
+            } = rline
+            {
+                let color = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
+                let color1 = core::Scalar::new(255.0, 0.0, 255.0, 0.0);
+                let x1 = *x + 10.0;
+                let y1 = *y - (x - x1) * (*k);
+                imgproc::line(
+                    &mut colored,
+                    core::Point::new(*x as i32, *y as i32),
+                    core::Point::new(x1 as i32, y1 as i32),
+                    color1,
+                    1,
+                    8,
+                    0,
+                );
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(*x as i32 - 1, *y as i32 - 1, 3, 3),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
             }
-            if let RegionLine::LineFY{x:x,y:y,k:k,weight:w}=rline{
-                let color = core::Scalar::new(0.0,255.0,0.0,0.0);
-                let color1 = core::Scalar::new(255.0,255.0,0.0,0.0);
-                let y1 = *y+10.0;
-                let x1 = *x - (y-y1)*(*k);
-                imgproc::line(&mut colored,core::Point::new(*x as i32, *y as i32),core::Point::new(x1 as i32,y1 as i32),color1,1,8,0);
-                imgproc::rectangle(&mut colored,core::Rect::new(*x as i32 -1,*y as i32 -1,3,3),color,1,1,0);
+            if let RegionLine::LineFY {
+                x: x,
+                y: y,
+                k: k,
+                weight: w,
+            } = rline
+            {
+                let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
+                let color1 = core::Scalar::new(255.0, 255.0, 0.0, 0.0);
+                let y1 = *y + 10.0;
+                let x1 = *x - (y - y1) * (*k);
+                imgproc::line(
+                    &mut colored,
+                    core::Point::new(*x as i32, *y as i32),
+                    core::Point::new(x1 as i32, y1 as i32),
+                    color1,
+                    1,
+                    8,
+                    0,
+                );
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(*x as i32 - 1, *y as i32 - 1, 3, 3),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
             }
         }
 
         let (k, sigma) = grid.average_k();
-        let mut d0o:Option<f32> = None;
-        let color = core::Scalar::new(255.0,0.0,0.0,0.0);
+        let mut d0o: Option<f32> = None;
+        let color = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
 
-        for rline in grid.data.iter(){
-            if let RegionLine::LineFX{x,y,..}=rline {
-                let d = *y-k*(*x);
-                if let Some(d0) = d0o{
-                    println!("delta {}",d-d0);
-                    if (d-d0).abs()<5.0{
-                        imgproc::rectangle(&mut colored,core::Rect::new(*x as i32 -3,*y as i32 -3,5,5),color,1,1,0); 
+        for rline in grid.data.iter() {
+            if let RegionLine::LineFX { x, y, .. } = rline {
+                let d = *y - k * (*x);
+                if let Some(d0) = d0o {
+//                    println!("delta {}", d - d0);
+                    if (d - d0).abs() < 5.0 {
+                        imgproc::rectangle(
+                            &mut colored,
+                            core::Rect::new(*x as i32 - 3, *y as i32 - 3, 5, 5),
+                            color,
+                            1,
+                            1,
+                            0,
+                        );
                     }
-                }
-                else{
-                    println!("====================================>     D0 = {} K = {}",d,k);
+                    if (d - d0).abs() > 20.0 && (d - d0).abs()<30.0{
+                        let color = core::Scalar::new(255.0, 0.0, 128.0, 0.0);
+                        imgproc::rectangle(
+                            &mut colored,
+                            core::Rect::new(*x as i32 - 3, *y as i32 - 3, 5, 5),
+                            color,
+                            1,
+                            1,
+                            0,
+                        );
+                    }
+                } else {
+                    println!(
+                        "====================================>     D0 = {} K = {}",
+                        d, k
+                    );
                     d0o = Some(d);
                 }
             }
         }
-        
+        let mut histogram = Histogram::new();
+        /*
+        for rline in grid.data.iter() {
+            if let RegionLine::LineFX { x, y, .. } = rline {
+                let d = *y - k * (*x);
+                histogram.calibrate(d);
+            }
+        }
+        */
+        histogram.min=0.0;
+        histogram.max=HISTOGRAM_BINS as f32;
+        println!("D Min: {}   Max: {}   Delta: {}", histogram.min, histogram.max, histogram.max - histogram.min);
+        if histogram.max - histogram.min > 5.0 {
+            for rline in grid.data.iter() {
+                if let RegionLine::LineFX {
+                    x: x,
+                    y: y,
+                    weight: w,
+                    ..
+                } = rline
+                {
+                    let d = *y - k * (*x);
+                    histogram.add(d, *w as u32);
+                }
+            }
+            histogram.resize_to(256);
+            histogram.distance_histogram();
+            histogram.reduced_resize_to(256);
+            for (i, b) in histogram.reduced_bins.iter().enumerate() {
+                let color = core::Scalar::new(255.0, 128.0, 0.0, 0.0);
+                imgproc::line(
+                    &mut colored,
+                    core::Point::new(3*i as i32,480),
+                    core::Point::new(3*i as i32, 480-*b as i32),
+                    color,
+                    2,
+                    8,
+                    0,
+                );
+            }
+        }
 
-//        highgui::imshow(window, &gray)?;
-//        println!("Frame size {:?}, {:?}", frame.size(), frame);
+        //        highgui::imshow(window, &gray)?;
+        //        println!("Frame size {:?}, {:?}", frame.size(), frame);
         if frame.size()?.width > 0 {
             highgui::imshow(window, &mut colored)?;
         }
