@@ -6,7 +6,7 @@ use opencv::imgproc;
 use opencv::videoio;
 
 const CHARACTERISTICS_BUFFER_SIZE: usize = 640 * 480;
-const REGION_SIZE: usize = 10;
+const REGION_SIZE: usize = 8;
 const REGIONLINE_BUFFER_SIZE: usize = (640 / REGION_SIZE) * (480 / REGION_SIZE);
 const HISTOGRAM_BINS: usize = 512;
 const REDUCED_HISTOGRAM_BINS: usize = 100;
@@ -354,6 +354,43 @@ impl CharacteristicsGrid {
         }
         grid
     }
+    fn make_regionline_grid_symmetric(
+        &self,
+        mean_angle: u8,
+        delta_angle: u8,
+        weight_threshold: f32,
+    ) -> RegionLineGrid {
+        let mut grid = RegionLineGrid::new(self.rows / REGION_SIZE, self.cols / REGION_SIZE);
+        for j in 0..self.rows / REGION_SIZE {
+            for i in 0..self.cols / REGION_SIZE {
+                let regionline = self.evaluate_region(
+                    i * REGION_SIZE,
+                    j * REGION_SIZE,
+                    REGION_SIZE,
+                    REGION_SIZE,
+                    mean_angle,
+                    delta_angle,
+                    weight_threshold,
+                );
+                let rls = match regionline {
+                    RegionLine::Empty => {
+                        self.evaluate_region(
+                            i * REGION_SIZE,
+                            j * REGION_SIZE,
+                            REGION_SIZE,
+                            REGION_SIZE,
+                            mean_angle.wrapping_add(128),
+                            delta_angle,
+                            weight_threshold,
+                        )
+                    },
+                    _ => regionline,
+                };
+                grid.set(i, j, rls);
+            }
+        }
+        grid
+    }
 }
 
 fn angle_in_range(a: u8, mean: u8, delta: u8) -> bool {
@@ -503,7 +540,7 @@ fn convolution(cols: usize, rows: usize, source: &[u8], destination: &mut [u8]) 
         }
     }
     println!("MAXINTENSITY:    {}", maxintensity);
-    characteristics.make_regionline_grid(histogram.main_angle(), 5, 1000f32)
+    characteristics.make_regionline_grid_symmetric(histogram.main_angle(), 5, 1000f32)
 }
 
 fn run() -> opencv::Result<()> {
@@ -681,7 +718,7 @@ fn run() -> opencv::Result<()> {
                     ..
                 } = rline
                 {
-                    let d = *y - k * (*x);
+                    let d = (*y - k * (*x))/(k*k+1.0).sqrt();
                     histogram.add(d, *w as u32);
                 }
             }
@@ -699,6 +736,46 @@ fn run() -> opencv::Result<()> {
                     8,
                     0,
                 );
+            }
+        }
+
+        let color = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
+        for rline1 in grid.data.iter() {
+            if let RegionLine::LineFX {x: x1, y: y1, k: k1, weight: w1} = rline1 {
+                for rline2 in grid.data.iter() {
+                    if let RegionLine::LineFX {x: x2, y: y2, k: k2, weight: w2, } = rline2 {
+                        let dx = *x2 - *x1;
+                        let dy = *y2 - *y1;
+                        let d = (dy - *k1 * dx).abs()/((*k1 * *k1 + 1.0).sqrt());
+                        let dr = (dx*dx+dy*dy).sqrt();
+                        if d<3.0 && dr<20.0{
+                            let k = dy/dx;
+                            for rline3 in grid.data.iter() {
+                                if let RegionLine::LineFX {x: x3, y: y3, k: k3, weight: w3, } = rline3 {
+                                    let dx = *x3 - *x1;
+                                    let dy = *y3 - *y1;
+                                    let k3 = dy/dx;
+                                    if (k3-k1).abs()<0.1{
+                                        let d = (dy - k * dx).abs()/((k * k + 1.0).sqrt());
+                                        let dr = (dx*dx+dy*dy).sqrt();
+                                        if d<3.0 && dr<60.0{
+
+                                            imgproc::line(
+                                                &mut colored,
+                                                core::Point::new(*x3 as i32, *y3 as i32),
+                                                core::Point::new(*x2 as i32, *y2 as i32),
+                                                color,
+                                                1,
+                                                8,
+                                                0,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
