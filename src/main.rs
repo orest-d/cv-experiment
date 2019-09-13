@@ -5,12 +5,16 @@ use opencv::highgui;
 use opencv::imgproc;
 use opencv::videoio;
 
+pub mod angle_histogram;
+use angle_histogram::*;
+
 const CHARACTERISTICS_BUFFER_SIZE: usize = 640 * 480;
 const REGION_SIZE: usize = 8;
 const REGIONLINE_BUFFER_SIZE: usize = (640 / REGION_SIZE) * (480 / REGION_SIZE);
 const HISTOGRAM_BINS: usize = 512;
 const REDUCED_HISTOGRAM_BINS: usize = 100;
 
+/*
 pub struct AngleHistogram {
     pub bins: [usize; 256],
 }
@@ -75,6 +79,7 @@ impl AngleHistogram {
         sum / weight
     }
 }
+*/
 
 pub struct Histogram {
     pub bins: [u32; HISTOGRAM_BINS],
@@ -169,9 +174,10 @@ pub struct CharacteristicsGrid {
 #[derive(Debug, Clone, Copy)]
 pub enum RegionLine {
     Empty,
-    LineFX { x: f32, y: f32, k: f32, weight: f32 },
-    LineFY { x: f32, y: f32, k: f32, weight: f32 },
+    LineFX { x: f32, y: f32, k: f32, weight: f32, x1:f32, x2:f32 },
+    LineFY { x: f32, y: f32, k: f32, weight: f32, y1:f32, y2:f32 },
 }
+
 
 pub struct RegionLineGrid {
     pub cols: usize,
@@ -206,7 +212,7 @@ impl RegionLineGrid {
                 x: x,
                 y: y,
                 k: k,
-                weight: w,
+                weight: w,..
             } = rline
             {
                 sumk += (*w * *k);
@@ -217,7 +223,7 @@ impl RegionLineGrid {
                 x: x,
                 y: y,
                 k: k,
-                weight: w,
+                weight: w,..
             } = rline
             {
                 sumk += (*w * *k);
@@ -229,6 +235,98 @@ impl RegionLineGrid {
         let avgkk = sumkk / sumw;
         let sigma = (avgkk - avgk * avgk).sqrt();
         (avgk, sigma)
+    }
+
+    fn neighbor_indices(x:usize,y:usize)->impl Iterator<Item=(usize,usize)>{
+        (0..2).into_iter().flat_map(
+            move |i| (0..2).into_iter().map(move |j| (i+x,j+y))
+        )
+    }
+    /*
+    fn neighbor_line_fx(&self, x:usize,y:usize)->Box<dyn Iterator<Item=(f32,f32,f32,f32,f32,f32)>>{
+        let get = self.get;
+
+        Box::new(RegionLineGrid::neighbor_indices(x,y).filter_map(move |(i,j)|{
+            if let RegionLine::LineFX{x:x,y:y,k:k,weight:w,x1:t1,x2:t2} = get(i,j){
+                Some((x,y,k,w,t1,t2))
+            }
+            else{
+                None
+            }    
+        }
+        ))
+    }
+    */
+    fn extrapolate_to_neighbors(&self) -> RegionLineGrid{
+        let (k, sigma) = self.average_k();
+        let mut grid = RegionLineGrid::new(self.cols, self.rows);
+        let sigma = sigma.max(0.01);
+        let pi = std::f32::consts::PI;
+
+        for i in 0..self.cols-2{
+            for j in 0..self.rows-2{
+                if let RegionLine::LineFX {
+                    x: xa,
+                    y: ya,
+                    k: ka,
+                    weight: wa,
+                    x1:xa1,
+                    x2:xa2
+                } = self.get(i+1, j+1){
+                    let ya1=ka*(xa1-xa)+ya;
+                    let dxa1 = xa1-xa;
+                    let dya1 = ya1-ya;
+                    let angle_a = 128.0 + 128.0*dya1.atan2(dxa1)/pi;
+
+                    let mut sumw = 0.0f32;
+                    let mut sumx = 0.0f32;
+                    let mut sumy = 0.0f32;
+                    let mut cxx = 0.0f32;
+                    let mut cyx = 0.0f32;
+                    let mut minx = xa1.min(xa2);
+                    let mut maxx = xa1.max(xa2);
+
+                    for ii in 0..2{
+                        for jj in 0..2{
+                            if let RegionLine::LineFX {
+                                x: xb,
+                                y: yb,
+                                k: kb,
+                                weight: wb,
+                                x1:xb1,
+                                x2:xb2
+                            } = self.get(i+ii, j+jj){
+                                let yb1=kb*(xb1-xb)+yb;
+                                let dxb1 = xb1-xb;
+                                let dyb1 = yb1-yb;
+                                let angle_b = 128.0 + 128.0*dyb1.atan2(dxb1)/pi;
+                                let diff_angle_ab = angle_b-angle_a;
+                                let mut w = (-diff_angle_ab*diff_angle_ab/8.0).exp();
+
+                                let dx = xb-xa;
+                                let dy = yb-ya;
+                                let dr = (dx*dx+dy*dy).sqrt();
+                                if dr>1.0{
+                                    // y-ya = k(x-xa) v=(1,k) n=(-k,1)/sqrt(k*k+1)
+                                    // dab = n*(xb-xa,yb-ya) = ((yb-ya)-k(xb-xa))/sqrt(k*k+1)
+                                    let dab = ((yb-ya)-ka*(xb-xa))/(ka*ka+1.0).sqrt();
+                                    if dab.abs()<5.0{
+                                        let angle_ab = 128.0 + 128.0*dy.atan2(dx)/pi;
+                                        let diff_angle_aba = angle_ab-angle_a;
+                                        w *= (-diff_angle_aba*diff_angle_aba/8.0).exp();
+                                        minx = minx.min(xb1).min(xb2);
+                                        maxx = maxx.max(xb1).max(xb2);
+                                        sumx += w*xb;
+                                        sumy += w*yb;
+                                    } 
+                                }
+                            }                                             
+                        }
+                    }
+                }
+            }
+        }
+        grid
     }
 }
 
@@ -305,6 +403,8 @@ impl CharacteristicsGrid {
                     y: cy,
                     k: cyx / cxx,
                     weight: weight,
+                    x1: x1 as f32,
+                    x2: (x1+dx) as f32
                 }
             } else {
                 for i in 0..dx {
@@ -325,6 +425,8 @@ impl CharacteristicsGrid {
                     y: cy,
                     k: cyx / cyy,
                     weight: weight,
+                    y1: y1 as f32,
+                    y2: (y1+dy) as f32
                 }
             }
         } else {
@@ -602,7 +704,7 @@ fn run() -> opencv::Result<()> {
                 x: x,
                 y: y,
                 k: k,
-                weight: w,
+                weight: w,..
             } = rline
             {
                 let color = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
@@ -631,7 +733,7 @@ fn run() -> opencv::Result<()> {
                 x: x,
                 y: y,
                 k: k,
-                weight: w,
+                weight: w,..
             } = rline
             {
                 let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
@@ -740,10 +842,39 @@ fn run() -> opencv::Result<()> {
         }
 
         let color = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
+        for rline in grid.data.iter() {
+            if let RegionLine::LineFX {
+                x: x,
+                y: y,
+                k: k,
+                weight: w,
+                x1: x1,
+                x2: x2
+            } = *rline
+            {
+                // y = kx + q => q = y - kx
+                // y' - y = k(x' - x)
+                // y'     = k(x' - x) + y 
+                let y1 = k*(x1-x)+y;
+                let y2 = k*(x2-x)+y;
+                imgproc::line(
+                    &mut colored,
+                    core::Point::new(x1 as i32, y1 as i32),
+                    core::Point::new(x2 as i32, y2 as i32),
+                    color,
+                    1,
+                    8,
+                    0,
+                );
+               
+            }
+        }
+
+        /*
         for rline1 in grid.data.iter() {
-            if let RegionLine::LineFX {x: x1, y: y1, k: k1, weight: w1} = rline1 {
+            if let RegionLine::LineFX {x: x1, y: y1, k: k1, weight: w1,..} = rline1 {
                 for rline2 in grid.data.iter() {
-                    if let RegionLine::LineFX {x: x2, y: y2, k: k2, weight: w2, } = rline2 {
+                    if let RegionLine::LineFX {x: x2, y: y2, k: k2, weight: w2,.. } = rline2 {
                         let dx = *x2 - *x1;
                         let dy = *y2 - *y1;
                         let d = (dy - *k1 * dx).abs()/((*k1 * *k1 + 1.0).sqrt());
@@ -751,7 +882,7 @@ fn run() -> opencv::Result<()> {
                         if d<3.0 && dr<20.0{
                             let k = dy/dx;
                             for rline3 in grid.data.iter() {
-                                if let RegionLine::LineFX {x: x3, y: y3, k: k3, weight: w3, } = rline3 {
+                                if let RegionLine::LineFX {x: x3, y: y3, k: k3, weight: w3,.. } = rline3 {
                                     let dx = *x3 - *x1;
                                     let dy = *y3 - *y1;
                                     let k3 = dy/dx;
@@ -778,7 +909,7 @@ fn run() -> opencv::Result<()> {
                 }
             }
         }
-
+*/
         //        highgui::imshow(window, &gray)?;
         //        println!("Frame size {:?}, {:?}", frame.size(), frame);
         if frame.size()?.width > 0 {
