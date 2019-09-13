@@ -9,6 +9,7 @@ pub mod angle_histogram;
 pub mod fixed_histogram;
 pub mod characteristics_grid;
 pub mod region_line;
+pub mod utils;
 
 use angle_histogram::*;
 use fixed_histogram::*;

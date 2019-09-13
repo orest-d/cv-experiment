@@ -1,3 +1,5 @@
+use super::utils::*;
+
 const CHARACTERISTICS_BUFFER_SIZE: usize = 640 * 480;
 
 

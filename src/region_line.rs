@@ -1,4 +1,5 @@
 use super::characteristics_grid::*;
+use super::utils::*;
 
 const REGION_SIZE: usize = 8;
 const REGIONLINE_BUFFER_SIZE: usize = (640 / REGION_SIZE) * (480 / REGION_SIZE);
@@ -333,20 +334,3 @@ impl RegionLineGrid {
     }
 }
 
-fn angle_in_range(a: u8, mean: u8, delta: u8) -> bool {
-    let a = a as i16;
-    let mean = mean as i16;
-    let delta = delta as i16;
-
-    let mut x = a - mean;
-    if x < -128 {
-        x += 256;
-    }
-    if x > 128 {
-        x -= 256;
-    }
-    if x < 0 {
-        x = -x;
-    }
-    x < delta
-}
