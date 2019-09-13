@@ -52,8 +52,8 @@ fn convolution(cols: usize, rows: usize, source: &[u8], destination: &mut [u8]) 
 
     let mut histogram = AngleHistogram::new();
 
-    for i in 0usize..(rows - n) as usize {
-        for j in 0usize..(cols - n) as usize {
+    for i in 0..(rows - n) {
+        for j in 0..(cols - n) {
             let top = i * cols + j;
             let x11: i32 = source[top + a11] as i32;
             let x12: i32 = source[top + a12] as i32;
@@ -97,10 +97,9 @@ fn convolution(cols: usize, rows: usize, source: &[u8], destination: &mut [u8]) 
                 maxintensity = sum;
             }
             let a = (128f64 + 128f64 * (s as f64).atan2(c as f64) / pi) as u8;
-
             characteristics.set(
-                i,
                 j,
+                i,
                 Characteristics {
                     angle: a,
                     intensity: sum as u8,

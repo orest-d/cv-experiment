@@ -30,11 +30,14 @@ impl CharacteristicsGrid {
     }
 
     pub fn get(&self, x: usize, y: usize) -> Characteristics {
+        debug_assert!(x<self.cols);
+        debug_assert!(y<self.rows);
         self.data[x + self.cols * y]
     }
 
     pub fn set(&mut self, x: usize, y: usize, value: Characteristics) {
-        self.data[x * self.cols + y] = value
+        debug_assert!(x<self.cols);
+        debug_assert!(y<self.rows);
+        self.data[x + self.cols * y] = value
     }
 }
-
