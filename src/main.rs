@@ -7,107 +7,185 @@ use opencv::videoio;
 
 pub mod angle_histogram;
 pub mod fixed_histogram;
+pub mod characteristics_grid;
 
 use angle_histogram::*;
 use fixed_histogram::*;
+use characteristics_grid::*;
 
-const CHARACTERISTICS_BUFFER_SIZE: usize = 640 * 480;
 const REGION_SIZE: usize = 8;
 const REGIONLINE_BUFFER_SIZE: usize = (640 / REGION_SIZE) * (480 / REGION_SIZE);
 
-/*
-const HISTOGRAM_BINS: usize = 512;
-const REDUCED_HISTOGRAM_BINS: usize = 100;
 
-pub struct Histogram {
-    pub bins: [u32; HISTOGRAM_BINS],
-    pub reduced_bins: [u32; REDUCED_HISTOGRAM_BINS],
-    pub min: f32,
-    pub max: f32,
-    pub initialized: bool,
+trait RegionLineEvaluator{
+    fn evaluate_region(
+            &self,
+            x1: usize,
+            y1: usize,
+            dx: usize,
+            dy: usize,
+            mean_angle: u8,
+            delta_angle: u8,
+            weight_threshold: f32,
+        ) -> RegionLine;
+    fn make_regionline_grid(
+        &self,
+        mean_angle: u8,
+        delta_angle: u8,
+        weight_threshold: f32,
+    ) -> RegionLineGrid;
+    fn make_regionline_grid_symmetric(
+        &self,
+        mean_angle: u8,
+        delta_angle: u8,
+        weight_threshold: f32,
+    ) -> RegionLineGrid;    
 }
 
-impl Histogram {
-    pub fn new() -> Histogram {
-        Histogram {
-            bins: [0; HISTOGRAM_BINS],
-            reduced_bins: [0; REDUCED_HISTOGRAM_BINS],
-            min: 0.0,
-            max: 0.0,
-            initialized: false,
-        }
-    }
-    pub fn calibrate(&mut self, value: f32) {
-        if self.initialized {
-            if value < self.min {
-                self.min = value;
+impl RegionLineEvaluator for CharacteristicsGrid{
+    fn evaluate_region(
+        &self,
+        x1: usize,
+        y1: usize,
+        dx: usize,
+        dy: usize,
+        mean_angle: u8,
+        delta_angle: u8,
+        weight_threshold: f32,
+    ) -> RegionLine {
+        let mut cx: f32 = 0.0;
+        let mut cy: f32 = 0.0;
+        let mut cxx: f32 = 0.0;
+        let mut cyx: f32 = 0.0;
+        let mut cyy: f32 = 0.0;
+        let mut weight: f32 = 0.0;
+        for i in 0..dx {
+            let x = x1 + i;
+            for j in 0..dy {
+                let y = y1 + j;
+                let c = self.get(x, y);
+                if angle_in_range(c.angle, mean_angle, delta_angle) {
+                    weight += c.intensity as f32;
+                    cx += (x as f32) * (c.intensity as f32);
+                    cy += (y as f32) * (c.intensity as f32);
+                }
             }
-            if value > self.max {
-                self.max = value;
+        }
+        if weight > weight_threshold {
+            cx /= weight;
+            cy /= weight;
+            if mean_angle >= 224 || mean_angle < 32 || (mean_angle >= 96 && mean_angle < 160) {
+                // horizontal
+                for i in 0..dx {
+                    let x = x1 + i;
+                    for j in 0..dy {
+                        let y = y1 + j;
+                        let c = self.get(x, y);
+                        if angle_in_range(c.angle, mean_angle, delta_angle) {
+                            let xbar = (x as f32) - cx;
+                            let ybar = (y as f32) - cy;
+                            cxx += xbar * xbar * (c.intensity as f32);
+                            cyx += ybar * xbar * (c.intensity as f32);
+                        }
+                    }
+                }
+                RegionLine::LineFX {
+                    x: cx,
+                    y: cy,
+                    k: cyx / cxx,
+                    weight: weight,
+                    x1: x1 as f32,
+                    x2: (x1+dx) as f32
+                }
+            } else {
+                for i in 0..dx {
+                    let x = x1 + i;
+                    for j in 0..dy {
+                        let y = y1 + j;
+                        let c = self.get(x, y);
+                        if angle_in_range(c.angle, mean_angle, delta_angle) {
+                            let xbar = (x as f32) - cx;
+                            let ybar = (y as f32) - cy;
+                            cyy += ybar * ybar * (c.intensity as f32);
+                            cyx += ybar * xbar * (c.intensity as f32);
+                        }
+                    }
+                }
+                RegionLine::LineFY {
+                    x: cx,
+                    y: cy,
+                    k: cyx / cyy,
+                    weight: weight,
+                    y1: y1 as f32,
+                    y2: (y1+dy) as f32
+                }
             }
         } else {
-            self.min = value;
-            self.max = value;
-            self.initialized = true;
+            RegionLine::Empty
         }
-    }
-    pub fn add(&mut self, value: f32, weight: u32) {
-        if value>=self.min && value<=self.max{
-            let index =
-                (((HISTOGRAM_BINS - 1) as f32) * (value - self.min) / (self.max - self.min)) as usize;
-            self.bins[index] += weight;
-        }
-    }
-    pub fn max_bin_value(&self) -> u32 {
-        *self.bins.iter().max().unwrap()
     }
 
-    pub fn resize_to(&mut self, size: u32) {
-        let max = self.max_bin_value();
-        if max > 0 {
-            for bin in self.bins.iter_mut() {
-                *bin = (*bin * size) / max;
+    fn make_regionline_grid(
+        &self,
+        mean_angle: u8,
+        delta_angle: u8,
+        weight_threshold: f32,
+    ) -> RegionLineGrid {
+        let mut grid = RegionLineGrid::new(self.rows / REGION_SIZE, self.cols / REGION_SIZE);
+        for j in 0..self.rows / REGION_SIZE {
+            for i in 0..self.cols / REGION_SIZE {
+                let regionline = self.evaluate_region(
+                    i * REGION_SIZE,
+                    j * REGION_SIZE,
+                    REGION_SIZE,
+                    REGION_SIZE,
+                    mean_angle,
+                    delta_angle,
+                    weight_threshold,
+                );
+                grid.set(i, j, regionline);
             }
         }
+        grid
     }
 
-    pub fn reduced_max(&self) -> u32 {
-        *self.reduced_bins.iter().max().unwrap()
-    }
-
-    pub fn reduced_resize_to(&mut self, size: u32) {
-        let max = self.reduced_max();
-        if max > 0 {
-            for bin in self.reduced_bins.iter_mut() {
-                *bin = (*bin * size) / max;
+    fn make_regionline_grid_symmetric(
+        &self,
+        mean_angle: u8,
+        delta_angle: u8,
+        weight_threshold: f32,
+    ) -> RegionLineGrid {
+        let mut grid = RegionLineGrid::new(self.rows / REGION_SIZE, self.cols / REGION_SIZE);
+        for j in 0..self.rows / REGION_SIZE {
+            for i in 0..self.cols / REGION_SIZE {
+                let regionline = self.evaluate_region(
+                    i * REGION_SIZE,
+                    j * REGION_SIZE,
+                    REGION_SIZE,
+                    REGION_SIZE,
+                    mean_angle,
+                    delta_angle,
+                    weight_threshold,
+                );
+                let rls = match regionline {
+                    RegionLine::Empty => {
+                        self.evaluate_region(
+                            i * REGION_SIZE,
+                            j * REGION_SIZE,
+                            REGION_SIZE,
+                            REGION_SIZE,
+                            mean_angle.wrapping_add(128),
+                            delta_angle,
+                            weight_threshold,
+                        )
+                    },
+                    _ => regionline,
+                };
+                grid.set(i, j, rls);
             }
         }
+        grid
     }
-
-    pub fn distance_histogram(&mut self) {
-        for i in 0..(REDUCED_HISTOGRAM_BINS-1) {
-            for j in 0..(HISTOGRAM_BINS-1) {
-                let index = i + j;
-                if index >= HISTOGRAM_BINS {
-                    break;
-                }
-                self.reduced_bins[i] += self.bins[index] * self.bins[j];
-            }
-        }
-    }
-}
-*/
-
-#[derive(Debug, Clone, Copy)]
-pub struct Characteristics {
-    pub angle: u8,
-    pub intensity: u8,
-}
-
-pub struct CharacteristicsGrid {
-    pub cols: usize,
-    pub rows: usize,
-    pub data: [Characteristics; CHARACTERISTICS_BUFFER_SIZE],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -263,171 +341,6 @@ impl RegionLineGrid {
                         }
                     }
                 }
-            }
-        }
-        grid
-    }
-}
-
-impl CharacteristicsGrid {
-    fn new(cols: usize, rows: usize) -> CharacteristicsGrid {
-        let len = rows * cols;
-        assert!(len < CHARACTERISTICS_BUFFER_SIZE);
-        CharacteristicsGrid {
-            rows: rows,
-            cols: cols,
-            data: [Characteristics {
-                angle: 0,
-                intensity: 0,
-            }; CHARACTERISTICS_BUFFER_SIZE],
-        }
-    }
-
-    fn get(&self, x: usize, y: usize) -> Characteristics {
-        self.data[x + self.cols * y]
-    }
-
-    fn set(&mut self, x: usize, y: usize, value: Characteristics) {
-        self.data[x * self.cols + y] = value
-    }
-
-    fn evaluate_region(
-        &self,
-        x1: usize,
-        y1: usize,
-        dx: usize,
-        dy: usize,
-        mean_angle: u8,
-        delta_angle: u8,
-        weight_threshold: f32,
-    ) -> RegionLine {
-        let mut cx: f32 = 0.0;
-        let mut cy: f32 = 0.0;
-        let mut cxx: f32 = 0.0;
-        let mut cyx: f32 = 0.0;
-        let mut cyy: f32 = 0.0;
-        let mut weight: f32 = 0.0;
-        for i in 0..dx {
-            let x = x1 + i;
-            for j in 0..dy {
-                let y = y1 + j;
-                let c = self.get(x, y);
-                if angle_in_range(c.angle, mean_angle, delta_angle) {
-                    weight += c.intensity as f32;
-                    cx += (x as f32) * (c.intensity as f32);
-                    cy += (y as f32) * (c.intensity as f32);
-                }
-            }
-        }
-        if weight > weight_threshold {
-            cx /= weight;
-            cy /= weight;
-            if mean_angle >= 224 || mean_angle < 32 || (mean_angle >= 96 && mean_angle < 160) {
-                // horizontal
-                for i in 0..dx {
-                    let x = x1 + i;
-                    for j in 0..dy {
-                        let y = y1 + j;
-                        let c = self.get(x, y);
-                        if angle_in_range(c.angle, mean_angle, delta_angle) {
-                            let xbar = (x as f32) - cx;
-                            let ybar = (y as f32) - cy;
-                            cxx += xbar * xbar * (c.intensity as f32);
-                            cyx += ybar * xbar * (c.intensity as f32);
-                        }
-                    }
-                }
-                RegionLine::LineFX {
-                    x: cx,
-                    y: cy,
-                    k: cyx / cxx,
-                    weight: weight,
-                    x1: x1 as f32,
-                    x2: (x1+dx) as f32
-                }
-            } else {
-                for i in 0..dx {
-                    let x = x1 + i;
-                    for j in 0..dy {
-                        let y = y1 + j;
-                        let c = self.get(x, y);
-                        if angle_in_range(c.angle, mean_angle, delta_angle) {
-                            let xbar = (x as f32) - cx;
-                            let ybar = (y as f32) - cy;
-                            cyy += ybar * ybar * (c.intensity as f32);
-                            cyx += ybar * xbar * (c.intensity as f32);
-                        }
-                    }
-                }
-                RegionLine::LineFY {
-                    x: cx,
-                    y: cy,
-                    k: cyx / cyy,
-                    weight: weight,
-                    y1: y1 as f32,
-                    y2: (y1+dy) as f32
-                }
-            }
-        } else {
-            RegionLine::Empty
-        }
-    }
-    fn make_regionline_grid(
-        &self,
-        mean_angle: u8,
-        delta_angle: u8,
-        weight_threshold: f32,
-    ) -> RegionLineGrid {
-        let mut grid = RegionLineGrid::new(self.rows / REGION_SIZE, self.cols / REGION_SIZE);
-        for j in 0..self.rows / REGION_SIZE {
-            for i in 0..self.cols / REGION_SIZE {
-                let regionline = self.evaluate_region(
-                    i * REGION_SIZE,
-                    j * REGION_SIZE,
-                    REGION_SIZE,
-                    REGION_SIZE,
-                    mean_angle,
-                    delta_angle,
-                    weight_threshold,
-                );
-                grid.set(i, j, regionline);
-            }
-        }
-        grid
-    }
-    fn make_regionline_grid_symmetric(
-        &self,
-        mean_angle: u8,
-        delta_angle: u8,
-        weight_threshold: f32,
-    ) -> RegionLineGrid {
-        let mut grid = RegionLineGrid::new(self.rows / REGION_SIZE, self.cols / REGION_SIZE);
-        for j in 0..self.rows / REGION_SIZE {
-            for i in 0..self.cols / REGION_SIZE {
-                let regionline = self.evaluate_region(
-                    i * REGION_SIZE,
-                    j * REGION_SIZE,
-                    REGION_SIZE,
-                    REGION_SIZE,
-                    mean_angle,
-                    delta_angle,
-                    weight_threshold,
-                );
-                let rls = match regionline {
-                    RegionLine::Empty => {
-                        self.evaluate_region(
-                            i * REGION_SIZE,
-                            j * REGION_SIZE,
-                            REGION_SIZE,
-                            REGION_SIZE,
-                            mean_angle.wrapping_add(128),
-                            delta_angle,
-                            weight_threshold,
-                        )
-                    },
-                    _ => regionline,
-                };
-                grid.set(i, j, rls);
             }
         }
         grid
