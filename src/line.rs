@@ -1,8 +1,6 @@
 use super::utils::*;
 use super::characteristics_grid::*;
 
-const POINT_BUFFER_SIZE: usize = 10*10;
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum LineType{
     FX,
@@ -49,8 +47,7 @@ impl LinearFit{
         }
     }
 
-    pub fn add(&mut self,point:WeightedPoint){
-        let WeightedPoint{x:x,y:y,weight:w}=point;
+    pub fn add(&mut self,x:f32,y:f32,w:f32){
         self.x_sum += w*x;
         self.y_sum += w*y;
         self.xx_sum += w*x*x;
@@ -171,27 +168,15 @@ impl Line{
     }
 
     pub fn fit_region(grid:&CharacteristicsGrid, x:usize, y:usize, dx:usize, dy:usize, angle:u8, delta:u8)->Line{
-        let mut buffer = [WeightedPoint{x:0.0,y:0.0,weight:0.0};POINT_BUFFER_SIZE];
-        let mut count = 0;
+        let mut fit = LinearFit::new();
 
-        let points = region_indices(x,y,dx,dy).filter_map(
-            |(x,y)| {
-                let c = grid.get(x,y);
-                if angle_in_range(c.angle,angle,delta){
-                    Some(WeightedPoint{x:x as f32, y:y as f32, weight:c.intensity as f32})
-                }
-                else{
-                    None
-                }
+        for (x,y) in region_indices(x,y,dx,dy){
+            let c = grid.get(x,y);
+            if angle_in_range(c.angle,angle,delta){
+                fit.add(x as f32, y as f32, c.intensity as f32);
             }
-        );
-
-        for (slot,point) in buffer.iter_mut().zip(points){
-            *slot = point;
-            count+=1;
-        }
-
-        Line::fit(&buffer[0..count])
+        };
+        fit.line()
     }
 }
 
@@ -223,8 +208,8 @@ mod tests {
     #[test]
     fn test_fit_simple() {
         let mut fit = LinearFit::new();
-        fit.add(WeightedPoint{x:0.0,y:0.0,weight:1.0});
-        fit.add(WeightedPoint{x:1.0,y:1.0,weight:1.0});
+        fit.add(0.0, 0.0, 1.0);
+        fit.add(1.0, 1.0, 1.0);
 
         let line = fit.line();
         assert_eq!(line.line_type, LineType::FX);
