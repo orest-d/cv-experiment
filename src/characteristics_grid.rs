@@ -3,7 +3,7 @@ use super::utils::*;
 const CHARACTERISTICS_BUFFER_SIZE: usize = 640 * 480;
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Characteristics {
     pub angle: u8,
     pub intensity: u8,

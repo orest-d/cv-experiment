@@ -10,12 +10,13 @@ pub mod fixed_histogram;
 pub mod characteristics_grid;
 pub mod region_line;
 pub mod utils;
+pub mod line;
 
 use angle_histogram::*;
 use fixed_histogram::*;
 use characteristics_grid::*;
 use region_line::*;
-
+use line::*;
 
 fn convolution(cols: usize, rows: usize, source: &[u8], destination: &mut [u8]) -> RegionLineGrid {
     let n = 5_usize;
