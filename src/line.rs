@@ -63,6 +63,10 @@ impl LinearFit{
         }
     }
 
+    pub fn add_wp(&mut self,wp: WeightedPoint){
+        self.add(wp.x,wp.y,wp.weight)
+    }
+
     pub fn line(&self)->Line{
         let mut line = Line::new();
         if self.w_sum>0.0{
@@ -108,63 +112,14 @@ impl Line{
     pub fn new() -> Line{
         Line{line_type:LineType::Empty, point:WeightedPoint{x:0.0,y:0.0,weight:0.0}, k:0.0, x1:0.0, x2:0.0}
     }
-    pub fn fit<'a,I>(points:I) -> Self
-    where I:IntoIterator<Item=&'a WeightedPoint>{
-        let mut x_sum=0.0;
-        let mut y_sum=0.0;
-        let mut xx_sum=0.0;
-        let mut yy_sum=0.0;
-        let mut xy_sum=0.0;
-        let mut w_sum=0.0;
-        let mut count=0.0;
-        let mut xmin:Option<f32> = None;
-        let mut xmax:Option<f32> = None;
-        let mut ymin:Option<f32> = None;
-        let mut ymax:Option<f32> = None;
 
-        for &WeightedPoint{x:x,y:y,weight:w} in points{
-            x_sum += w*x;
-            y_sum += w*y;
-            xx_sum += w*x*x;
-            yy_sum += w*y*y;
-            xy_sum += w*x*y;
-            w_sum += w;
-            count+=1.0;
-            if w>0.0{
-                xmin = Some(xmin.map_or(x,|old| old.min(x)));
-                xmax = Some(xmax.map_or(x,|old| old.max(x)));
-                ymin = Some(ymin.map_or(y,|old| old.min(y)));
-                ymax = Some(ymax.map_or(y,|old| old.max(y)));
-            }
+    pub fn fit_weighted_points<'a,I>(points:I) -> Self
+    where I:IntoIterator<Item=&'a WeightedPoint>{
+        let mut fit = LinearFit::new();
+        for &wp in points{
+            fit.add_wp(wp);
         }
-        let mut line = Line::new();
-        if w_sum>0.0{
-            let x = x_sum/w_sum;
-            let y = y_sum/w_sum;
-            let xx = xx_sum/w_sum - x*x;
-            let yy = yy_sum/w_sum - y*y;
-            let xy = xy_sum/w_sum - x*y;
-            if xx.abs()>0.0 || yy.abs()>0.0{                
-                line.point.weight=w_sum/count;
-                if xx.abs()>=yy.abs(){
-                    line.line_type = LineType::FX;
-                    line.point.x = x;
-                    line.point.y = y;
-                    line.k = xy/xx;
-                    line.x1 = xmin.unwrap_or(x);
-                    line.x2 = xmax.unwrap_or(x);
-                }
-                else{
-                    line.line_type = LineType::FY;
-                    line.point.x = y;
-                    line.point.y = x;
-                    line.k = xy/yy;
-                    line.x1 = ymin.unwrap_or(y);
-                    line.x2 = ymax.unwrap_or(y);
-                }
-            }
-        }
-        line
+        fit.line()
     }
 
     pub fn fit_region(grid:&CharacteristicsGrid, x:usize, y:usize, dx:usize, dy:usize, angle:u8, delta:u8)->Line{
@@ -178,6 +133,67 @@ impl Line{
         };
         fit.line()
     }
+
+    pub fn y1(&self) -> f32 {
+        self.point.y+self.k*(self.x1-self.point.x)
+    }
+
+    pub fn y2(&self) -> f32 {
+        self.point.y+self.k*(self.x2-self.point.x)
+    }
+
+    pub fn midpoint(&self) -> Option<(f32,f32)>{
+        match self.line_type {
+            LineType::Empty => None,
+            LineType::FX => Some((self.point.x,self.point.y)),
+            LineType::FY => Some((self.point.y,self.point.x))
+        }
+    }
+
+    pub fn as_fx(&self)->Line{
+        match self.line_type {
+            LineType::FY =>{
+                let mut line = Line::new();
+                if self.k.abs()<0.25{
+                    line
+                }
+                else{
+                    line.line_type=LineType::FX;
+                    line.point.x=self.point.y;
+                    line.point.y=self.point.x;
+                    line.point.weight = self.point.weight;
+                    line.k = 1.0/self.k;
+                    line.x1 = self.y1();
+                    line.x2 = self.y2();
+                    line
+                }
+            },
+            _ => *self,
+        }
+    }
+
+    pub fn as_fy(&self)->Line{
+        match self.line_type {
+            LineType::FX =>{
+                let mut line = Line::new();
+                if self.k.abs()<0.25{
+                    line
+                }
+                else{
+                    line.line_type=LineType::FY;
+                    line.point.x=self.point.y;
+                    line.point.y=self.point.x;
+                    line.point.weight = self.point.weight;
+                    line.k = 1.0/self.k;
+                    line.x1 = self.y1();
+                    line.x2 = self.y2();
+                    line
+                }
+            },
+            _ => *self,
+        }
+    }
+
 }
 
 #[cfg(test)]
@@ -192,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_line_fit_simple() {
-        let line = Line::fit(&[ 
+        let line = Line::fit_weighted_points(&[ 
                 WeightedPoint{x:0.0,y:0.0,weight:1.0},
                 WeightedPoint{x:1.0,y:1.0,weight:1.0},
             ]);
@@ -223,7 +239,7 @@ mod tests {
  
     #[test]
     fn test_fit_fy() {
-        let line = Line::fit(&[ 
+        let line = Line::fit_weighted_points(&[ 
                 WeightedPoint{x:0.0,y:0.0,weight:1.0},
                 WeightedPoint{x:1.0,y:2.0,weight:1.0},
             ]);
@@ -236,10 +252,31 @@ mod tests {
         assert_eq!(line.x2, 2.0);
     }
 
+    #[test]
+    fn test_fit_fy_as_fx() {
+        let line = Line::fit_weighted_points(&[ 
+                WeightedPoint{x:0.0,y:0.0,weight:1.0},
+                WeightedPoint{x:1.0,y:2.0,weight:1.0},
+            ]);
+        assert_eq!(line.line_type, LineType::FY);
+        assert_eq!(line.k, 0.5);
+        assert_eq!(line.x1, 0.0);
+        assert_eq!(line.x2, 2.0);
+
+        let line = line.as_fx();
+        assert_eq!(line.line_type, LineType::FX);
+        assert_eq!(line.point.x, 0.5);
+        assert_eq!(line.point.y, 1.0);
+        assert_eq!(line.point.weight, 1.0);
+        assert_eq!(line.k, 2.0);
+        assert_eq!(line.x1, 0.0);
+        assert_eq!(line.x2, 1.0);
+    }
+
 
     #[test]
     fn test_fit_fx_weighted() {
-        let line = Line::fit(&[ 
+        let line = Line::fit_weighted_points(&[ 
                 WeightedPoint{x:1.0,y:2.0,weight:1.0},
                 WeightedPoint{x:4.0,y:5.0,weight:2.0},
             ]);
