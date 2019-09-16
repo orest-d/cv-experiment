@@ -29,6 +29,13 @@ impl CharacteristicsGrid {
         }
     }
 
+    pub fn reset(&mut self){
+        for p in self.data.iter_mut(){
+            p.angle = 0;
+            p.intensity = 0;
+        }
+    }
+
     pub fn get(&self, x: usize, y: usize) -> Characteristics {
         debug_assert!(x<self.cols);
         debug_assert!(y<self.rows);

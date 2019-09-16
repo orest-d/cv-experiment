@@ -1,4 +1,3 @@
-
 pub struct AngleHistogram {
     pub bins: [usize; 256],
 }
@@ -7,6 +6,13 @@ impl AngleHistogram {
     pub fn new() -> AngleHistogram {
         AngleHistogram { bins: [0; 256] }
     }
+
+    pub fn reset(&mut self) {
+        for p in self.bins.iter_mut() {
+            *p = 0;
+        }
+    }
+
     pub fn add(&mut self, angle: u8, weight: i32) {
         self.bins[angle as usize] += weight as usize;
     }
@@ -39,6 +45,7 @@ impl AngleHistogram {
         }
         angle as u8
     }
+
     pub fn main_angle(&self) -> u8 {
         let mut angle = 0;
         let mut max_value = 0;
@@ -51,6 +58,7 @@ impl AngleHistogram {
         }
         angle as u8
     }
+   
     pub fn precise_main_angle_in_degrees(&self) -> f64 {
         let mid_angle = self.main_angle();
         let mut sum = 0f64;
@@ -63,4 +71,3 @@ impl AngleHistogram {
         sum / weight
     }
 }
-

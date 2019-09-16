@@ -136,6 +136,14 @@ impl Line {
         }
     }
 
+    pub fn reset(&mut self){
+        self.line_type = LineType::Empty;
+        self.point = WeightedPoint{x:0.0, y:0.0, weight:0.0};
+        self.k = 0.0;
+        self.x1 = 0.0;
+        self.x2 = 0.0;
+    }
+
     pub fn fit_weighted_points<'a, I>(points: I) -> Self
     where
         I: IntoIterator<Item = &'a WeightedPoint>,
@@ -160,7 +168,27 @@ impl Line {
 
         for (x, y) in region_indices(x, y, dx, dy) {
             let c = grid.get(x, y);
-            if angle_in_range(c.angle, angle, delta) {
+            if angle_difference(c.angle, angle) < delta {
+                fit.add(x as f32, y as f32, c.intensity as f32);
+            }
+        }
+        fit.line()
+    }
+
+    pub fn fit_region_c2(
+        grid: &CharacteristicsGrid,
+        x: usize,
+        y: usize,
+        dx: usize,
+        dy: usize,
+        angle: u8,
+        delta: u8,
+    ) -> Line {
+        let mut fit = LinearFit::new();
+
+        for (x, y) in region_indices(x, y, dx, dy) {
+            let c = grid.get(x, y);
+            if angle_difference_c2(c.angle, angle) < delta {
                 fit.add(x as f32, y as f32, c.intensity as f32);
             }
         }
@@ -183,6 +211,20 @@ impl Line {
         }
     }
 
+    pub fn points(&self) -> Option<(i32, i32, i32, i32, i32, i32)>{
+        match self.line_type {
+            LineType::Empty => None,
+            LineType::FX => Some((
+                self.x1 as i32, self.y1() as i32,
+                self.x2 as i32, self.y2() as i32,
+                self.point.x as i32, self.point.y as i32)),
+            LineType::FY => Some((
+                self.y1() as i32, self.x1 as i32, 
+                self.y2() as i32, self.x2 as i32, 
+                self.point.y as i32, self.point.x as i32))
+        }        
+    }
+
     pub fn direction(&self) -> (f32, f32) {
         let normal = (1.0 + self.k * self.k).sqrt();
         match self.line_type {
@@ -196,6 +238,7 @@ impl Line {
         let normal = (1.0 + self.k * self.k).sqrt();
         (-self.k / normal, 1.0 / normal)
     }
+
     pub fn normal(&self) -> (f32, f32) {
         let (x, y) = self.direction();
         (-y, x)
@@ -212,6 +255,7 @@ impl Line {
         let (rx, ry) = (x - self.point.x, y - self.point.y);
         (rx * nx + ry * ny).abs()
     }
+
     pub fn distance(&self, x: f32, y: f32) -> f32 {
         match self.line_type {
             LineType::Empty => -1.0,

@@ -20,6 +20,13 @@ impl LineGrid {
             data: [Line::new(); LINE_BUFFER_SIZE],
         }
     }
+
+    pub fn reset(&mut self){
+        for p in self.data.iter_mut(){
+            p.reset();
+        }
+    }
+
     pub fn get(&self, x: usize, y: usize) -> Line {
         debug_assert!(x<self.cols);
         debug_assert!(y<self.rows);
@@ -37,6 +44,16 @@ impl LineGrid {
             for j in 0..self.rows{
                 self.set(i,j,
                 Line::fit_region(grid, i*REGION_SIZE, j*REGION_SIZE, REGION_SIZE, REGION_SIZE, angle, delta)
+                )
+            }
+        }
+    } 
+
+    pub fn from_characteristics_c2(&mut self, grid:&CharacteristicsGrid, angle:u8, delta:u8){
+        for i in 0..self.cols{
+            for j in 0..self.rows{
+                self.set(i,j,
+                Line::fit_region_c2(grid, i*REGION_SIZE, j*REGION_SIZE, REGION_SIZE, REGION_SIZE, angle, delta)
                 )
             }
         }

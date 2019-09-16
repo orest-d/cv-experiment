@@ -12,6 +12,7 @@ pub mod line;
 pub mod line_grid;
 pub mod region_line;
 pub mod utils;
+pub mod grids;
 
 use angle_histogram::*;
 use characteristics_grid::*;
@@ -19,6 +20,7 @@ use fixed_histogram::*;
 use line::*;
 use line_grid::*;
 use region_line::*;
+use grids::*;
 
 fn convolution(
     cols: usize,
@@ -171,8 +173,7 @@ fn run() -> opencv::Result<()> {
         panic!("Unable to open default camera!");
     }
     let mut counter = 0;
-    let mut characteristics_grid = CharacteristicsGrid::new(640 - 5, 480 - 5);
-    let mut line_grid = LineGrid::new(640 / 8 - 1, 480 / 8 - 1);
+    let mut grids = Grids::new();
     loop {
         counter = (counter + 1) % 50;
         println!("Loop");
@@ -209,9 +210,9 @@ fn run() -> opencv::Result<()> {
             rows as usize,
             &clone_gray[..len],
             slice,
-            &mut characteristics_grid,
+            &mut grids.characteristics_grid,
         );
-        line_grid.from_characteristics(&characteristics_grid, 0, 8);
+        grids.fit_horizontal();
 
         let mut colored = core::Mat::default()?;
         imgproc::cvt_color(&gray, &mut colored, imgproc::COLOR_GRAY2BGR, 0)?;
@@ -219,13 +220,15 @@ fn run() -> opencv::Result<()> {
         //        imgproc::line(&mut colored,core::Point::new(100,200),core::Point::new(200,300),color,3,8,0);
         //        imgproc::rectangle(&mut colored,core::Rect::new(100,200,30,30),color,3,0,0);
 
-        for line in line_grid.data.iter() {
-            if let Some((x, y)) = line.midpoint() {
-                let color = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
+        let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
+        let color_line = core::Scalar::new(128.0, 128.0, 255.0, 0.0);
+        for line in grids.line_grid.data.iter() {
+            if let Some((x1, y1, x2, y2, x, y)) = line.points() {
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
                 imgproc::rectangle(
                     &mut colored,
-                    core::Rect::new(x as i32 - 1, y as i32 - 1, 3, 3),
-                    color,
+                    core::Rect::new(x - 1, y - 1, 3, 3),
+                    color_mid,
                     1,
                     1,
                     0,
