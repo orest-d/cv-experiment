@@ -4,7 +4,7 @@ use super::characteristics_grid::*;
 use super::line::*;
 use super::line_grid::*;
 
-const ANGLE_DELTA: u8 = 5;
+const ANGLE_DELTA: u8 = 10;
 
 pub struct Grids{
     pub characteristics_grid:CharacteristicsGrid,

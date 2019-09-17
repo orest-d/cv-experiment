@@ -10,7 +10,6 @@ pub mod characteristics_grid;
 pub mod fixed_histogram;
 pub mod line;
 pub mod line_grid;
-pub mod region_line;
 pub mod utils;
 pub mod grids;
 
@@ -19,7 +18,6 @@ use characteristics_grid::*;
 use fixed_histogram::*;
 use line::*;
 use line_grid::*;
-use region_line::*;
 use grids::*;
 
 fn convolution(
@@ -181,18 +179,6 @@ fn run() -> opencv::Result<()> {
         //        let mut frame = unsafe{core::Mat::new_rows_cols(300,200,core::CV_8UC3)}?;
         cam.read(&mut frame)?;
 
-        /*
-        //        let mut frame1 = unsafe{core::Mat::new_rows_cols(frame.rows()?,frame.cols()?,core::CV_8UC1)}?;
-                let mut frame1 = core::Mat::new_rows_cols_with_default(frame.rows()?,frame.cols()?,core::CV_8UC1,core::Scalar::all(0.0))?;
-                for i in 0..frame.rows()?{
-                    for j in 0..frame.cols()?{
-                        let mut ptr = unsafe{frame1.ptr_2d_mut(i,j)}?;
-        //                let val:u8 = (frame.at_2d(i,j)?%256_i32) as u8;
-                         let val = *unsafe{frame.ptr_2d(i,j)}?;
-                        *ptr = 100u8+val%100u8;
-                    }
-                }
-        */
         let mut gray = core::Mat::default()?;
         imgproc::cvt_color(&frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
         let rows = gray.rows()?;
@@ -212,7 +198,8 @@ fn run() -> opencv::Result<()> {
             slice,
             &mut grids.characteristics_grid,
         );
-        grids.fit_horizontal();
+        let a = grids.calculate_main_angle();
+        println!("MAIN ANGLE:      {} <-----",a);
 
         let mut colored = core::Mat::default()?;
         imgproc::cvt_color(&gray, &mut colored, imgproc::COLOR_GRAY2BGR, 0)?;
@@ -220,6 +207,7 @@ fn run() -> opencv::Result<()> {
         //        imgproc::line(&mut colored,core::Point::new(100,200),core::Point::new(200,300),color,3,8,0);
         //        imgproc::rectangle(&mut colored,core::Rect::new(100,200,30,30),color,3,0,0);
 
+        grids.fit_horizontal();
         let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
         let color_line = core::Scalar::new(128.0, 128.0, 255.0, 0.0);
         for line in grids.line_grid.data.iter() {
@@ -235,157 +223,24 @@ fn run() -> opencv::Result<()> {
                 );
             }
         }
-        /*
-                let (k, sigma) = grid.average_k();
-                let mut d0o: Option<f32> = None;
-                let color = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
 
-                for rline in grid.data.iter() {
-                    if let RegionLine::LineFX { x, y, .. } = rline {
-                        let d = *y - k * (*x);
-                        if let Some(d0) = d0o {
-        //                    println!("delta {}", d - d0);
-                            if (d - d0).abs() < 5.0 {
-                                imgproc::rectangle(
-                                    &mut colored,
-                                    core::Rect::new(*x as i32 - 3, *y as i32 - 3, 5, 5),
-                                    color,
-                                    1,
-                                    1,
-                                    0,
-                                );
-                            }
-                            if (d - d0).abs() > 20.0 && (d - d0).abs()<30.0{
-                                let color = core::Scalar::new(255.0, 0.0, 128.0, 0.0);
-                                imgproc::rectangle(
-                                    &mut colored,
-                                    core::Rect::new(*x as i32 - 3, *y as i32 - 3, 5, 5),
-                                    color,
-                                    1,
-                                    1,
-                                    0,
-                                );
-                            }
-                        } else {
-                            println!(
-                                "====================================>     D0 = {} K = {}",
-                                d, k
-                            );
-                            d0o = Some(d);
-                        }
-                    }
-                }
-                let mut histogram = Histogram::new();
-                /*
-                for rline in grid.data.iter() {
-                    if let RegionLine::LineFX { x, y, .. } = rline {
-                        let d = *y - k * (*x);
-                        histogram.calibrate(d);
-                    }
-                }
-                */
-        histogram.min=0.0;
-        histogram.max=HISTOGRAM_BINS as f32;
-        println!("D Min: {}   Max: {}   Delta: {}", histogram.min, histogram.max, histogram.max - histogram.min);
-        if histogram.max - histogram.min > 5.0 {
-        for rline in grid.data.iter() {
-        if let RegionLine::LineFX {
-        x: x,
-        y: y,
-        weight: w,
-        ..
-        } = rline
-        {
-        let d = (*y - k * (*x))/(k*k+1.0).sqrt();
-        histogram.add(d, *w as u32);
+        grids.fit_vertical();
+        let color_mid = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
+        let color_line = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
+        for line in grids.line_grid.data.iter() {
+            if let Some((x1, y1, x2, y2, x, y)) = line.points() {
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 1, y - 1, 3, 3),
+                    color_mid,
+                    1,
+                    1,
+                    0,
+                );
+            }
         }
-        }
-        histogram.resize_to(256);
-        histogram.distance_histogram();
-        histogram.reduced_resize_to(256);
-        for (i, b) in histogram.reduced_bins.iter().enumerate() {
-        let color = core::Scalar::new(255.0, 128.0, 0.0, 0.0);
-        imgproc::line(
-        &mut colored,
-        core::Point::new(3*i as i32,480),
-        core::Point::new(3*i as i32, 480-*b as i32),
-        color,
-        2,
-        8,
-        0,
-        );
-        }
-        }
-
-        let color = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
-        for rline in grid.data.iter() {
-        if let RegionLine::LineFX {
-        x: x,
-        y: y,
-        k: k,
-        weight: w,
-        x1: x1,
-        x2: x2
-        } = *rline
-        {
-        // y = kx + q => q = y - kx
-        // y' - y = k(x' - x)
-        // y'     = k(x' - x) + y
-        let y1 = k*(x1-x)+y;
-        let y2 = k*(x2-x)+y;
-        imgproc::line(
-        &mut colored,
-        core::Point::new(x1 as i32, y1 as i32),
-        core::Point::new(x2 as i32, y2 as i32),
-        color,
-        1,
-        8,
-        0,
-        );
-
-        }
-        }
-        */
-        /*
-                for rline1 in grid.data.iter() {
-                    if let RegionLine::LineFX {x: x1, y: y1, k: k1, weight: w1,..} = rline1 {
-                        for rline2 in grid.data.iter() {
-                            if let RegionLine::LineFX {x: x2, y: y2, k: k2, weight: w2,.. } = rline2 {
-                                let dx = *x2 - *x1;
-                                let dy = *y2 - *y1;
-                                let d = (dy - *k1 * dx).abs()/((*k1 * *k1 + 1.0).sqrt());
-                                let dr = (dx*dx+dy*dy).sqrt();
-                                if d<3.0 && dr<20.0{
-                                    let k = dy/dx;
-                                    for rline3 in grid.data.iter() {
-                                        if let RegionLine::LineFX {x: x3, y: y3, k: k3, weight: w3,.. } = rline3 {
-                                            let dx = *x3 - *x1;
-                                            let dy = *y3 - *y1;
-                                            let k3 = dy/dx;
-                                            if (k3-k1).abs()<0.1{
-                                                let d = (dy - k * dx).abs()/((k * k + 1.0).sqrt());
-                                                let dr = (dx*dx+dy*dy).sqrt();
-                                                if d<3.0 && dr<60.0{
-
-                                                    imgproc::line(
-                                                        &mut colored,
-                                                        core::Point::new(*x3 as i32, *y3 as i32),
-                                                        core::Point::new(*x2 as i32, *y2 as i32),
-                                                        color,
-                                                        1,
-                                                        8,
-                                                        0,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-        */
+         
         //        highgui::imshow(window, &gray)?;
         //        println!("Frame size {:?}, {:?}", frame.size(), frame);
         if frame.size()?.width > 0 {
