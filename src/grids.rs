@@ -9,7 +9,9 @@ const ANGLE_DELTA: u8 = 10;
 pub struct Grids{
     pub characteristics_grid:CharacteristicsGrid,
     pub angle_histogram:AngleHistogram,
-    pub line_grid:LineGrid,
+    pub line_grid1:LineGrid,
+    pub line_grid2:LineGrid,
+    pub line_grid1_is_active:bool,
     pub main_angle:u8
 }
 
@@ -18,7 +20,9 @@ impl Grids{
         Grids{
             characteristics_grid: CharacteristicsGrid::new(640 - 5, 480 - 5),
             angle_histogram: AngleHistogram::new(),
-            line_grid: LineGrid::new(640 / 8 - 1, 480 / 8 - 1),
+            line_grid1: LineGrid::new(640 / 8 - 1, 480 / 8 - 1),
+            line_grid2: LineGrid::new(640 / 8 - 1, 480 / 8 - 1),
+            line_grid1_is_active:true,
             main_angle: 0
         }
     }
@@ -26,11 +30,22 @@ impl Grids{
     pub fn reset(&mut self){
         self.characteristics_grid.reset();
         self.angle_histogram.reset();
-        self.line_grid.reset();
+        self.line_grid1.reset();
+        self.line_grid2.reset();
+        self.line_grid1_is_active=true;
         self.main_angle = 0;
     }
 
+    pub fn line_grid(&mut self) -> &mut LineGrid{
+        if (self.line_grid1_is_active){&mut self.line_grid1} else {&mut self.line_grid2}
+    }
+
+    pub fn switch_linear_grid(&mut self){
+        self.line_grid1_is_active = !self.line_grid1_is_active;
+    }
+
     pub fn calculate_main_angle(&mut self) -> u8{
+        self.angle_histogram.reset();
         for row in 0..self.characteristics_grid.rows{
             for p in self.characteristics_grid.data[(row*self.characteristics_grid.cols)..((row+1)*self.characteristics_grid.cols)].iter(){
                 self.angle_histogram.add(p.angle, p.intensity as i32);
@@ -41,11 +56,13 @@ impl Grids{
     }
 
     pub fn fit(&mut self, angle:u8, delta:u8){
-        self.line_grid.from_characteristics(&self.characteristics_grid, angle, delta);
+        let lg = if (self.line_grid1_is_active){&mut self.line_grid1} else {&mut self.line_grid2};
+        lg.from_characteristics(&self.characteristics_grid, angle, delta);
     }
 
     pub fn fit_c2(&mut self, angle:u8, delta:u8){
-        self.line_grid.from_characteristics_c2(&self.characteristics_grid, angle, delta);
+        let lg = if (self.line_grid1_is_active){&mut self.line_grid1} else {&mut self.line_grid2};
+        lg.from_characteristics_c2(&self.characteristics_grid, angle, delta);
     }
 
     pub fn fit_vertical(&mut self){

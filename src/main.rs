@@ -210,7 +210,7 @@ fn run() -> opencv::Result<()> {
         grids.fit_horizontal();
         let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
         let color_line = core::Scalar::new(128.0, 128.0, 255.0, 0.0);
-        for line in grids.line_grid.data.iter() {
+        for line in grids.line_grid().data.iter() {
             if let Some((x1, y1, x2, y2, x, y)) = line.points() {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
                 imgproc::rectangle(
@@ -227,7 +227,7 @@ fn run() -> opencv::Result<()> {
         grids.fit_vertical();
         let color_mid = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
         let color_line = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
-        for line in grids.line_grid.data.iter() {
+        for line in grids.line_grid().data.iter() {
             if let Some((x1, y1, x2, y2, x, y)) = line.points() {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
                 imgproc::rectangle(

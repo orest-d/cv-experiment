@@ -57,6 +57,20 @@ impl LineGrid {
                 )
             }
         }
-    } 
+    }
+/*
+    pub fn from_neighbors(&mut self, grid:&LineGrid){
+        let neighbors = 3;
+        let mut fit = LinearFit::new();
+
+        for j in 0..(self.rows-neighbors){
+            for i in 0..(self.cols-neighbors){
+                self.set(i,j,
+                Line::fit_region_c2(grid, i*REGION_SIZE, j*REGION_SIZE, REGION_SIZE, REGION_SIZE, angle, delta)
+                )
+            }
+        }
+    }
+*/
 }
 

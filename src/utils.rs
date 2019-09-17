@@ -54,6 +54,7 @@ pub fn region_indices(
         .flat_map(move |j| (0..dx).into_iter().map(move |i| (i + x, j + y)))
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -305,6 +305,33 @@ impl Line {
             _ => *self,
         }
     }
+
+    pub fn length(&self) ->f32{
+        let dx = self.x2 - self.x1;
+        let dy = self.y2() - self.y1();
+        (dx*dx+dy*dy).sqrt()
+    }
+
+    pub fn similarity(&self, line:Line) -> f32{
+        if self.line_type == LineType::Empty{
+            0.0
+        }
+        else{
+            if let Some((x,y))= line.midpoint(){
+                let w = (self.point.weight*line.point.weight).sqrt();
+                let l = (self.length()*line.length()).sqrt();
+                let d = self.distance(x,y);
+                let dw = (-d*d/50.0).exp();
+                let dwc = if d<=5.0 {dw} else {0.0};
+                let o = self.overlap(line)-0.9;
+                let oc = if o>0.0 {o} else {0.0};
+                w*l*oc*dwc
+            }
+            else{
+                0.0
+            }
+        }
+    }
 }
 
 #[cfg(test)]
