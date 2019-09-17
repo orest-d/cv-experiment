@@ -2,7 +2,7 @@ use super::characteristics_grid::*;
 use super::utils::*;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum LineType {
+pub enum LineType {
     FX,
     FY,
     Empty,
@@ -81,6 +81,14 @@ impl LinearFit {
         self.add(wp.x, wp.y, wp.weight)
     }
 
+    pub fn add_line(&mut self, line: Line, weight:f32) {
+        if let Some((x1,y1,x2,y2,x,y)) = line.points(){
+            self.add(x,y,weight);
+            self.add(x1,y1,weight/2.0);
+            self.add(x2,y2,weight/2.0);
+        }
+    }
+
     pub fn line(&self) -> Line {
         let mut line = Line::new();
         if self.w_sum > 0.0 {
@@ -114,11 +122,11 @@ impl LinearFit {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Line {
-    line_type: LineType,
-    point: WeightedPoint,
-    k: f32,
-    x1: f32,
-    x2: f32,
+    pub line_type: LineType,
+    pub point: WeightedPoint,
+    pub k: f32,
+    pub x1: f32,
+    pub x2: f32,
 }
 
 impl Line {
@@ -211,7 +219,7 @@ impl Line {
         }
     }
 
-    pub fn points(&self) -> Option<(i32, i32, i32, i32, i32, i32)>{
+    pub fn points_i32(&self) -> Option<(i32, i32, i32, i32, i32, i32)>{
         match self.line_type {
             LineType::Empty => None,
             LineType::FX => Some((
@@ -222,6 +230,20 @@ impl Line {
                 self.y1() as i32, self.x1 as i32, 
                 self.y2() as i32, self.x2 as i32, 
                 self.point.y as i32, self.point.x as i32))
+        }        
+    }
+
+    pub fn points(&self) -> Option<(f32, f32, f32, f32, f32, f32)>{
+        match self.line_type {
+            LineType::Empty => None,
+            LineType::FX => Some((
+                self.x1, self.y1(),
+                self.x2, self.y2(),
+                self.point.x, self.point.y)),
+            LineType::FY => Some((
+                self.y1(), self.x1, 
+                self.y2(), self.x2, 
+                self.point.y, self.point.x))
         }        
     }
 
@@ -381,6 +403,26 @@ mod tests {
         assert_eq!(line.k, 1.0);
         assert_eq!(line.x1, 0.0);
         assert_eq!(line.x2, 1.0);
+    }
+
+    #[test]
+    fn test_fit_add_line1() {
+        let mut fit = LinearFit::new();
+        fit.add(0.0, 0.0, 1.0);
+        fit.add(1.0, 1.0, 1.0);
+
+        let line1 = fit.line();
+        let mut fit2 = LinearFit::new();
+        fit2.add_line(line1, 1.0);
+        let line2 = fit.line();
+
+        assert_eq!(line2.line_type, LineType::FX);
+        assert_eq!(line2.point.x, 0.5);
+        assert_eq!(line2.point.y, 0.5);
+        assert_eq!(line2.point.weight, 1.0);
+        assert_eq!(line2.k, 1.0);
+        assert_eq!(line2.x1, 0.0);
+        assert_eq!(line2.x2, 1.0);
     }
 
     #[test]

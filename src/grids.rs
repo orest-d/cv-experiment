@@ -72,4 +72,15 @@ impl Grids{
     pub fn fit_horizontal(&mut self){
         self.fit_c2(self.main_angle.wrapping_add(64), ANGLE_DELTA);
     }
+
+    pub fn lines_from_neighbors(&mut self){
+        self.switch_linear_grid();
+        let (target, source) = if self.line_grid1_is_active {
+            (&mut self.line_grid1, &self.line_grid2)
+        }
+        else {
+            (&mut self.line_grid2, &self.line_grid1)
+        };
+        target.from_neighbors(source);
+    }
 }

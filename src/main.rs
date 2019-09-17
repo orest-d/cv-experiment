@@ -208,10 +208,13 @@ fn run() -> opencv::Result<()> {
         //        imgproc::rectangle(&mut colored,core::Rect::new(100,200,30,30),color,3,0,0);
 
         grids.fit_horizontal();
+        grids.lines_from_neighbors();
+        grids.lines_from_neighbors();
+
         let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
         let color_line = core::Scalar::new(128.0, 128.0, 255.0, 0.0);
         for line in grids.line_grid().data.iter() {
-            if let Some((x1, y1, x2, y2, x, y)) = line.points() {
+            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
                 imgproc::rectangle(
                     &mut colored,
@@ -225,10 +228,12 @@ fn run() -> opencv::Result<()> {
         }
 
         grids.fit_vertical();
+        grids.lines_from_neighbors();
+        grids.lines_from_neighbors();
         let color_mid = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
         let color_line = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
         for line in grids.line_grid().data.iter() {
-            if let Some((x1, y1, x2, y2, x, y)) = line.points() {
+            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
                 imgproc::rectangle(
                     &mut colored,

@@ -58,19 +58,37 @@ impl LineGrid {
             }
         }
     }
-/*
+
     pub fn from_neighbors(&mut self, grid:&LineGrid){
         let neighbors = 3;
         let mut fit = LinearFit::new();
+        self.reset();
+        for y in 0..(self.rows-neighbors){
+            for x in 0..(self.cols-neighbors){
+                let central = grid.get(x+1,y+1);
+                if central.line_type == LineType::Empty{
+                    continue;
+                }
+                fit.reset();
+                fit.add_line(central, central.similarity(central));
+                let mut tl:TwoLargest<Line> = TwoLargest::new();
 
-        for j in 0..(self.rows-neighbors){
-            for i in 0..(self.cols-neighbors){
-                self.set(i,j,
-                Line::fit_region_c2(grid, i*REGION_SIZE, j*REGION_SIZE, REGION_SIZE, REGION_SIZE, angle, delta)
-                )
+                for j in 0..neighbors{
+                    for i in 0..neighbors{
+                        if i==1 && j==1{
+                            continue;
+                        }
+                        let line = self.get(x+i,y+j);
+                        tl.add(central.similarity(line),line);
+                    }
+                }
+
+                for &line in tl.max_item.iter().chain(tl.second_max_item.iter()){
+                    fit.add_line(line, central.similarity(line));
+                }
+                self.set(x+1,y+1,fit.line())
             }
         }
     }
-*/
 }
 

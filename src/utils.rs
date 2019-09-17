@@ -55,6 +55,67 @@ pub fn region_indices(
 }
 
 
+#[derive(Debug, Copy, Clone)]
+pub enum TwoLargestCount{
+    Empty,
+    One,
+    More
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct TwoLargest<T: Copy+Clone> {
+    pub count:TwoLargestCount,
+    pub max_value:f32,
+    pub max_item:Option<T>,
+    pub second_max_value:f32,
+    pub second_max_item:Option<T>,
+} 
+
+impl<T> TwoLargest<T> where T:Copy+Clone{
+    pub fn new()->TwoLargest<T>{
+        TwoLargest{
+            count:TwoLargestCount::Empty,
+            max_value:0.0,
+            max_item:None,
+            second_max_value:0.0,
+            second_max_item:None
+        }
+    }
+
+    fn add2(&mut self, value:f32, item:T){
+        if value<=self.max_value{
+            self.second_max_value = value;
+            self.second_max_item = Some(item);
+        }
+        else{
+            self.second_max_value = self.max_value;
+            self.second_max_item = self.max_item;
+            self.max_value = value;
+            self.max_item = Some(item);
+        }
+    }
+
+    pub fn add(&mut self, value:f32, item:T){
+        match self.count {
+            TwoLargestCount::Empty => {
+                self.count = TwoLargestCount::One;
+                self.max_value = value;
+                self.max_item = Some(item);
+            },
+            TwoLargestCount::One => {
+                self.count = TwoLargestCount::More;
+                self.add2(value, item);
+            },
+            TwoLargestCount::More => {
+                if value>self.second_max_value{
+                    self.add2(value, item);
+                }            
+            }
+
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,5 +201,17 @@ mod tests {
         assert_eq!(angle_difference_c2(255, 128), 1);
         assert_eq!(angle_difference_c2(128, 1), 1);
         assert_eq!(angle_difference_c2(128, 255), 1);
+    }
+
+    #[test]
+    fn test_two_largest(){
+        let mut tl:TwoLargest<i32> = TwoLargest::new();
+        assert_eq!(tl.max_item, None);
+        tl.add(1.0,123);
+        assert_eq!(tl.max_item, Some(123));
+        assert_eq!(tl.second_max_item, None);
+        tl.add(2.0,23);
+        assert_eq!(tl.max_item, Some(23));
+        assert_eq!(tl.second_max_item, Some(123));
     }
 }
