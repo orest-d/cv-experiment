@@ -9,6 +9,7 @@ pub struct LineGrid {
     pub cols: usize,
     pub rows: usize,
     pub data: [Line; LINE_BUFFER_SIZE],
+    pub count: usize
 }
 
 impl LineGrid {
@@ -18,6 +19,7 @@ impl LineGrid {
             rows: rows,
             cols: cols,
             data: [Line::new(); LINE_BUFFER_SIZE],
+            count: 0
         }
     }
 
@@ -25,6 +27,7 @@ impl LineGrid {
         for p in self.data.iter_mut() {
             p.reset();
         }
+        self.count=0;
     }
 
     pub fn get(&self, x: usize, y: usize) -> Line {
@@ -36,7 +39,13 @@ impl LineGrid {
     pub fn set(&mut self, x: usize, y: usize, value: Line) {
         debug_assert!(x < self.cols);
         debug_assert!(y < self.rows);
-        self.data[x + self.cols * y] = value
+        self.data[x + self.cols * y] = value;
+        //self.count= x + self.cols * y + 1;
+    }
+
+    pub fn push(&mut self, value:Line) {
+        self.data[self.count]=value;
+        self.count+=1;
     }
 
     pub fn from_characteristics(&mut self, grid: &CharacteristicsGrid, angle: u8, delta: u8) {
