@@ -209,7 +209,7 @@ fn run() -> opencv::Result<()> {
 
         grids.fit_horizontal();
         grids.lines_from_neighbors();
-        grids.lines_from_neighbors();
+        grids.reduce_area(2);
 
         let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
         let color_line = core::Scalar::new(128.0, 128.0, 255.0, 0.0);
@@ -218,7 +218,7 @@ fn run() -> opencv::Result<()> {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
                 imgproc::rectangle(
                     &mut colored,
-                    core::Rect::new(x - 1, y - 1, 3, 3),
+                    core::Rect::new(x - 2, y - 2, 5, 5),
                     color_mid,
                     1,
                     1,
@@ -229,7 +229,7 @@ fn run() -> opencv::Result<()> {
 
         grids.fit_vertical();
         grids.lines_from_neighbors();
-        grids.lines_from_neighbors();
+        grids.reduce_area(2);
         let color_mid = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
         let color_line = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
         for line in grids.line_grid().data.iter() {
@@ -237,7 +237,7 @@ fn run() -> opencv::Result<()> {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
                 imgproc::rectangle(
                     &mut colored,
-                    core::Rect::new(x - 1, y - 1, 3, 3),
+                    core::Rect::new(x - 2, y - 2, 5, 5),
                     color_mid,
                     1,
                     1,

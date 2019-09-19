@@ -10,9 +10,9 @@ pub enum LineType {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WeightedPoint {
-    x: f32,
-    y: f32,
-    weight: f32,
+    pub x: f32,
+    pub y: f32,
+    pub weight: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -352,6 +352,18 @@ impl Line {
             else{
                 0.0
             }
+        }
+    }
+
+    pub fn reduce(&self, line:Line) -> Line{
+        if self.similarity(line)>0.0{
+            let mut fit = LinearFit::new();
+            fit.add_line(*self, self.point.weight);
+            fit.add_line(line, line.point.weight);
+            fit.line()
+        }
+        else{
+            Line::new()
         }
     }
 }
