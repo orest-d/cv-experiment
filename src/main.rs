@@ -209,7 +209,8 @@ fn run() -> opencv::Result<()> {
 
         grids.fit_horizontal();
         grids.lines_from_neighbors();
-        grids.reduce_area(2);
+        grids.reduce_area(4);
+        grids.reduce_all();
 
         let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
         let color_line = core::Scalar::new(128.0, 128.0, 255.0, 0.0);
@@ -229,7 +230,8 @@ fn run() -> opencv::Result<()> {
 
         grids.fit_vertical();
         grids.lines_from_neighbors();
-        grids.reduce_area(2);
+        grids.reduce_area(4);
+        grids.reduce_all();
         let color_mid = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
         let color_line = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
         for line in grids.line_grid().data.iter() {

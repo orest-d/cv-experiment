@@ -122,7 +122,7 @@ impl LineGrid {
         }
     }
 
-    pub fn reduce_area(&mut self, grid: &LineGrid, step:usize) {
+    pub fn reduce_area_(&mut self, grid: &LineGrid, step:usize) {
         self.reset();
         for y in (0..(self.rows - step)).step_by(step) {
             for x in (0..(self.cols - step)).step_by(step) {
@@ -149,4 +149,56 @@ impl LineGrid {
             }
         }
     }
+
+    pub fn reduce_area(&mut self, grid: &LineGrid, step:usize) {
+        self.reset();
+        for y in (0..(self.rows - step)).step_by(step) {
+            for x in (0..(self.cols - step)).step_by(step) {
+                for j1 in 0..step {
+                    for i1 in 0..step {
+                        let index1 = i1+j1*step;
+                        let mut line1 = grid.get(x + i1, y + j1);
+                        if line1.line_type == LineType::Empty{
+                            continue;
+                        }
+                        for j2 in 0..step {
+                            for i2 in 0..step {
+                                let index2 = i2+j2*step;
+                                if index2<index1{
+                                    continue;
+                                }
+                                let line2 = grid.get(x + i2, y + j2);
+                                let reduced = line1.reduce(line2);
+
+                                if reduced.line_type != LineType::Empty{
+                                    line1=reduced;
+                                }
+                            }
+                        }
+                        self.push(line1);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn reduce_all(&mut self, grid: &LineGrid) {
+        self.reset();
+        for i in (0..grid.count){
+            let mut line1 = grid.data[i];
+            if line1.line_type == LineType::Empty{
+                continue;
+            }
+            for j in (0..i+1){
+                let line2 = grid.data[j];
+                let reduced = line1.reduce(line2);
+
+                if reduced.line_type != LineType::Empty{
+                    line1=reduced;
+                }
+            }
+            self.push(line1);
+        }
+    }
+
 }

@@ -343,9 +343,9 @@ impl Line {
                 let w = (self.point.weight*line.point.weight).sqrt();
                 let l = (self.length()*line.length()).sqrt();
                 let d = self.distance(x,y);
-                let dw = (-d*d/50.0).exp();
-                let dwc = if d<=5.0 {dw} else {0.0};
-                let o = self.overlap(line)-0.9;
+                let dw = (-d*d/40.0).exp();
+                let dwc = if d<=4.0 {dw} else {0.0};
+                let o = self.overlap(line)-0.90;
                 let oc = if o>0.0 {o} else {0.0};
                 w*l*oc*dwc
             }

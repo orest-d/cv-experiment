@@ -107,4 +107,15 @@ impl Grids {
         };
         target.reduce_area(source, step);
     }
+
+    pub fn reduce_all(&mut self) {
+        self.switch_linear_grid();
+        let (target, source) = if self.line_grid1_is_active {
+            (&mut self.line_grid1, &self.line_grid2)
+        } else {
+            (&mut self.line_grid2, &self.line_grid1)
+        };
+        target.reduce_all(source);
+    }
+
 }
