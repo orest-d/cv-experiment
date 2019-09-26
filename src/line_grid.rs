@@ -99,7 +99,7 @@ impl LineGrid {
                     continue;
                 }
                 fit.reset();
-                fit.add_line(central, central.similarity(central));
+                fit.add_line(central, central.similarity(central,7.0));
                 let mut tl: TwoLargest<Line> = TwoLargest::new();
 
                 for j in 0..neighbors {
@@ -109,19 +109,19 @@ impl LineGrid {
                         }
                         let line = self.get(x + i, y + j);
                         if line.point.weight > 0.0 {
-                            tl.add(central.similarity(line), line);
+                            tl.add(central.similarity(line,7.0), line);
                         }
                     }
                 }
 
                 for &line in tl.max_item.iter().chain(tl.second_max_item.iter()) {
-                    fit.add_line(line, central.similarity(line));
+                    fit.add_line(line, central.similarity(line,7.0));
                 }
                 self.set(x + 1, y + 1, fit.line())
             }
         }
     }
-
+/*
     pub fn reduce_area_(&mut self, grid: &LineGrid, step:usize) {
         self.reset();
         for y in (0..(self.rows - step)).step_by(step) {
@@ -149,7 +149,7 @@ impl LineGrid {
             }
         }
     }
-
+*/
     pub fn reduce_area(&mut self, grid: &LineGrid, step:usize) {
         self.reset();
         for y in (0..(self.rows - step)).step_by(step) {
@@ -161,6 +161,9 @@ impl LineGrid {
                         if line1.line_type == LineType::Empty{
                             continue;
                         }
+                        if line1.length()<8.0{
+                            continue;
+                        }
                         for j2 in 0..step {
                             for i2 in 0..step {
                                 let index2 = i2+j2*step;
@@ -168,7 +171,7 @@ impl LineGrid {
                                     continue;
                                 }
                                 let line2 = grid.get(x + i2, y + j2);
-                                let reduced = line1.reduce(line2);
+                                let reduced = line1.reduce(line2,7.0);
 
                                 if reduced.line_type != LineType::Empty{
                                     line1=reduced;
@@ -189,9 +192,12 @@ impl LineGrid {
             if line1.line_type == LineType::Empty{
                 continue;
             }
+            if line1.length()<10.0{
+                continue;
+            }
             for j in (0..i+1){
                 let line2 = grid.data[j];
-                let reduced = line1.reduce(line2);
+                let reduced = line1.reduce(line2,12.0);
 
                 if reduced.line_type != LineType::Empty{
                     line1=reduced;

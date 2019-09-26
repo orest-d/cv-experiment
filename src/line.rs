@@ -280,9 +280,18 @@ impl Line {
 
     pub fn distance(&self, x: f32, y: f32) -> f32 {
         match self.line_type {
-            LineType::Empty => -1.0,
+            LineType::Empty => 1.0e5,
             LineType::FX => self.raw_distance(x, y),
             LineType::FY => self.raw_distance(y, x),
+        }
+    }
+
+    pub fn max_endpoint_distance(&self, line:Line)->Option<f32>{
+        if let Some((x1,y1,x2,y2,_,_))=line.points(){
+            Some(self.distance(x1,y1).max(self.distance(x2,y2)))
+        }
+        else{
+            None
         }
     }
 
@@ -334,19 +343,27 @@ impl Line {
         (dx*dx+dy*dy).sqrt()
     }
 
-    pub fn similarity(&self, line:Line) -> f32{
+    pub fn similarity(&self, line:Line,minlength:f32) -> f32{
+        fn clamp(x:f32)->f32{
+            if x<0.0{
+                0.0
+            }
+            else{
+                x
+            }
+        }
         if self.line_type == LineType::Empty{
             0.0
         }
         else{
-            if let Some((x,y))= line.midpoint(){
+            if let Some(d) = self.max_endpoint_distance(line){
                 let w = (self.point.weight*line.point.weight).sqrt();
-                let l = (self.length()*line.length()).sqrt();
-                let d = self.distance(x,y);
-                let dw = (-d*d/40.0).exp();
+                let l1 = clamp(self.length()-minlength);
+                let l2 = clamp(line.length()-minlength);
+                let l = (l1*l2).sqrt();
+                let dw = (-d*d/20.0).exp();
                 let dwc = if d<=4.0 {dw} else {0.0};
-                let o = self.overlap(line)-0.90;
-                let oc = if o>0.0 {o} else {0.0};
+                let oc = clamp(0.1-(1.0-self.overlap(line))*(1.0+d)*(1.0+d));
                 w*l*oc*dwc
             }
             else{
@@ -355,8 +372,8 @@ impl Line {
         }
     }
 
-    pub fn reduce(&self, line:Line) -> Line{
-        if self.similarity(line)>0.0{
+    pub fn reduce(&self, line:Line,minlength:f32) -> Line{
+        if self.similarity(line,minlength)>0.0{
             let mut fit = LinearFit::new();
             fit.add_line(*self, self.point.weight);
             fit.add_line(line, line.point.weight);
