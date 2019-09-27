@@ -176,6 +176,27 @@ impl Line {
         self.x2 = 0.0;
     }
 
+    pub fn coordinates(&self)-> impl Iterator<Item = (usize, usize)> {
+        let x1 = self.x1.max(0.0) as usize;
+        let x2 = self.x2.max(0.0) as usize;
+        let line = *self;
+        (x1..x2).filter_map(
+            move |x| {
+                let y = line.point.y + line.k*(x as f32 - line.point.x);
+                if y>=0.0{
+                    match line.line_type {
+                        LineType::FX => Some((x,y as usize)),
+                        LineType::FY => Some((y as usize,x)),
+                        _ => None
+                    }
+                }
+                else{
+                    None
+                }
+            }
+        )
+    }
+
     pub fn fit_weighted_points<'a, I>(points: I) -> Self
     where
         I: IntoIterator<Item = &'a WeightedPoint>,

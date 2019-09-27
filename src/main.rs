@@ -213,6 +213,18 @@ fn run() -> opencv::Result<()> {
         if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
             imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,3,8,0);
         }
+        for (i,(x,y)) in line.coordinates().enumerate().filter(|(i, _)| i%10==0){
+            let x = x as i32;
+            let y = y as i32;
+            imgproc::rectangle(
+                &mut colored,
+                core::Rect::new(x - 4, y - 4, 9, 9),
+                color,
+                1,
+                1,
+                0,
+            );
+        }
 
         let line = Line::new_from_angle(a+64, 320.0, 240.0, 100.0);
         let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
