@@ -144,6 +144,30 @@ impl Line {
         }
     }
 
+    pub fn new_from_angle(angle:u8, x:f32, y:f32, length:f32)->Line{
+        let pi = std::f64::consts::PI as f32;
+        let a = (angle as f32)*pi/128.0;
+        
+        if (angle>=224) || (angle<32) || (angle>=96 && angle<160) {
+            Line{
+                line_type:LineType::FY,
+                point:WeightedPoint{x:y,y:x,weight:1.0},
+                k:a.sin()/a.cos(),
+                x1:y-length*a.cos(),
+                x2:y+length*a.cos()
+                }
+        }
+        else{
+            Line{
+                line_type:LineType::FX,
+                point:WeightedPoint{x:x,y:y,weight:1.0},
+                k:a.cos()/a.sin(),
+                x1:x-length*a.sin(),
+                x2:x+length*a.sin()
+                }
+        }
+    }
+
     pub fn reset(&mut self){
         self.line_type = LineType::Empty;
         self.point = WeightedPoint{x:0.0, y:0.0, weight:0.0};
