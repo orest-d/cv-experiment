@@ -176,26 +176,90 @@ impl Line {
         self.x2 = 0.0;
     }
 
-    pub fn coordinates(&self)-> impl Iterator<Item = (usize, usize)> {
+    pub fn grid_coordinates(&self,xmax:usize,ymax:usize)-> impl Iterator<Item = (usize, usize)> {
         let x1 = self.x1.max(0.0) as usize;
         let x2 = self.x2.max(0.0) as usize;
         let line = *self;
         (x1..x2).filter_map(
             move |x| {
-                let y = line.point.y + line.k*(x as f32 - line.point.x);
-                if y>=0.0{
-                    match line.line_type {
-                        LineType::FX => Some((x,y as usize)),
-                        LineType::FY => Some((y as usize,x)),
-                        _ => None
-                    }
+                
+                let yy = (line.point.y + line.k*(x as f32 - line.point.x));
+                if yy<0.0 {
+                    None
                 }
                 else{
-                    None
+                    let y = yy as usize;
+                    match line.line_type {
+                        LineType::FX => { if x<xmax && y<ymax {Some((x,y))} else {None} },
+                        LineType::FY => { if y<xmax && x<ymax {Some((y,x))} else {None} },
+                        _ => None
+                    }
                 }
             }
         )
     }
+
+    pub fn sample_coordinates(&self, steps:usize)-> impl Iterator<Item = (f32, f32)> {
+        let x1 = self.x1;
+        let x2 = self.x2;
+        let dx = (x2-x1)/(steps as f32);
+        let y1 = self.y1();
+        let y2 = self.y2();
+        let dy = (y2-y1)/(steps as f32);
+        
+        let line = *self;
+        (0..steps).filter_map(
+            move |i| {
+                let x = x1 + (i as f32)*dx;
+                let y = y1 + (i as f32)*dy;
+                match line.line_type {
+                    LineType::FX => Some((x,y)),
+                    LineType::FY => Some((y,x)),
+                    _ => None
+                }
+            }
+        )
+    }
+
+    pub fn orthogonal_line_through(&self, x:f32, y:f32, length:f32) -> Line{
+        let dk = length/(1.0 + self.k*self.k).sqrt();
+
+        match self.line_type {
+            LineType::FX =>  Line{
+                line_type: LineType::FY,
+                point: WeightedPoint {
+                    x: y,
+                    y: x,
+                    weight: 1.0
+                },
+                k: -self.k,
+                x1: y-dk,
+                x2: y+dk,
+            },
+            LineType::FY => Line{
+                line_type: LineType::FX,
+                point: WeightedPoint {
+                    x: x,
+                    y: y,
+                    weight: 1.0
+                },
+                k: -self.k,
+                x1: x-dk,
+                x2: x+dk,
+            },
+            _ => Line::new()
+        }
+    }
+
+    pub fn sample_orthogonal_lines(&self, steps:usize, length:f32) -> impl Iterator<Item = Line> {        
+        let line = *self;
+        self.sample_coordinates(steps).map(
+            move |(x,y)| {
+                line.orthogonal_line_through(x, y, length)
+            }
+        )
+    }
+
 
     pub fn fit_weighted_points<'a, I>(points: I) -> Self
     where

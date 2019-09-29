@@ -213,7 +213,7 @@ fn run() -> opencv::Result<()> {
         if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
             imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,3,8,0);
         }
-        for (i,(x,y)) in line.coordinates().enumerate().filter(|(i, _)| i%10==0){
+        for (i,(x,y)) in line.grid_coordinates(640,480).enumerate().filter(|(i, _)| i%10==0){
             let x = x as i32;
             let y = y as i32;
             imgproc::rectangle(
@@ -224,6 +224,22 @@ fn run() -> opencv::Result<()> {
                 1,
                 0,
             );
+        }
+        let color = core::Scalar::new(255.0, 255.0, 255.0, 0.0);
+        println!("  LINE {:?}",line);
+        for ol in line.sample_orthogonal_lines(10, 100.0){
+            if let Some((x1, y1, x2, y2, x, y)) = ol.points_i32() {
+                println!("  OL {:?} {} {}",ol,x,y);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 4, y - 4, 9, 9),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
+            }
         }
 
         let line = Line::new_from_angle(a+64, 320.0, 240.0, 100.0);
