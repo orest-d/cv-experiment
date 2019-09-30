@@ -213,6 +213,15 @@ fn run() -> opencv::Result<()> {
         if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
             imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,3,8,0);
         }
+
+        let color = core::Scalar::new(0.0, 0.0, 128.0, 0.0);
+        for (x,y) in line.points_around(640, 480, 10){
+            let x = x as i32;
+            let y = y as i32;
+            imgproc::line(&mut colored,core::Point::new(x,y),core::Point::new(x,y),color,3,8,0);
+
+        }
+        let color = core::Scalar::new(50.0, 50.0, 255.0, 0.0);
         for (i,(x,y)) in line.grid_coordinates(640,480).enumerate().filter(|(i, _)| i%10==0){
             let x = x as i32;
             let y = y as i32;
@@ -247,6 +256,13 @@ fn run() -> opencv::Result<()> {
         println!("{:?}",line);
         if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
             imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,3,8,0);
+        }
+        let color = core::Scalar::new(0.0, 128.0, 0.0, 0.0);
+        for (x,y) in line.points_around(640, 480, 10){
+            let x = x as i32;
+            let y = y as i32;
+            imgproc::line(&mut colored,core::Point::new(x,y),core::Point::new(x,y),color,3,8,0);
+
         }
 
         grids.fit_horizontal();

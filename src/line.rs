@@ -176,7 +176,35 @@ impl Line {
         self.x2 = 0.0;
     }
 
+    pub fn grid_coordinates_raw(&self, xmax:usize, ymax:usize)-> impl Iterator<Item = (usize, usize)> {
+        let x1 = (self.x1.max(0.0) as usize).min(xmax);
+        let x2 = (self.x2.max(0.0) as usize).min(xmax);
+        let line = *self;
+        (x1.min(x2)..x1.max(x2)).filter_map(
+            move |x| {                
+                let yy = (line.point.y + line.k*(x as f32 - line.point.x));
+                if yy<0.0 {
+                    None
+                }
+                else{
+                    let y = yy as usize;
+                    if y<ymax {Some((x,y))} else {None}
+                }
+            }
+        )
+    }
+
     pub fn grid_coordinates(&self,xmax:usize,ymax:usize)-> impl Iterator<Item = (usize, usize)> {
+        let (xmax, ymax) = match self.line_type {
+            LineType::FX => (xmax, ymax),
+            LineType::FY => (ymax, xmax),
+            _ => (0,0)
+        };
+        let switch = self.line_type == LineType::FY;
+        self.grid_coordinates_raw(xmax, ymax).map(move |xy| if switch {(xy.1,xy.0)} else {xy})
+    }
+
+    pub fn grid_coordinates_old(&self,xmax:usize,ymax:usize)-> impl Iterator<Item = (usize, usize)> {
         let x1 = self.x1.max(0.0) as usize;
         let x2 = self.x2.max(0.0) as usize;
         let line = *self;
@@ -199,7 +227,7 @@ impl Line {
         )
     }
 
-    pub fn sample_coordinates(&self, steps:usize)-> impl Iterator<Item = (f32, f32)> {
+    pub fn sample_coordinates(&self, steps:usize) -> impl Iterator<Item = (f32, f32)> {
         let x1 = self.x1;
         let x2 = self.x2;
         let dx = (x2-x1)/(steps as f32);
@@ -219,6 +247,29 @@ impl Line {
                 }
             }
         )
+    }
+
+    pub fn points_around_raw(&self, xmax:usize, ymax: usize, delta:usize) -> impl Iterator<Item = (usize, usize)> {
+        let line = *self;
+        let idelta = delta as isize;
+        self.grid_coordinates_raw(xmax, ymax).flat_map(
+            move |(x,y)| {
+                let iy = y as isize;
+                let start = (iy-idelta).max(0) as usize;
+                let end = (y+delta).min(ymax);
+                (start..end).map(move |y| (x,y))
+            }
+        )
+    }
+
+    pub fn points_around(&self, xmax:usize, ymax: usize, delta:usize) -> impl Iterator<Item = (usize, usize)> {
+        let (xmax, ymax) = match self.line_type {
+            LineType::FX => (xmax, ymax),
+            LineType::FY => (ymax, xmax),
+            _ => (0,0)
+        };
+        let switch = self.line_type == LineType::FY;
+        self.points_around_raw(xmax, ymax, delta).map(move |xy| if switch {(xy.1,xy.0)} else {xy})
     }
 
     pub fn orthogonal_line_through(&self, x:f32, y:f32, length:f32) -> Line{
