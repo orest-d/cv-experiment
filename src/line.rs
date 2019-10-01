@@ -203,7 +203,7 @@ impl Line {
         let switch = self.line_type == LineType::FY;
         self.grid_coordinates_raw(xmax, ymax).map(move |xy| if switch {(xy.1,xy.0)} else {xy})
     }
-
+/*
     pub fn grid_coordinates_old(&self,xmax:usize,ymax:usize)-> impl Iterator<Item = (usize, usize)> {
         let x1 = self.x1.max(0.0) as usize;
         let x2 = self.x2.max(0.0) as usize;
@@ -226,7 +226,7 @@ impl Line {
             }
         )
     }
-
+*/
     pub fn sample_coordinates(&self, steps:usize) -> impl Iterator<Item = (f32, f32)> {
         let x1 = self.x1;
         let x2 = self.x2;
@@ -302,6 +302,7 @@ impl Line {
         }
     }
 
+
     pub fn sample_orthogonal_lines(&self, steps:usize, length:f32) -> impl Iterator<Item = Line> {        
         let line = *self;
         self.sample_coordinates(steps).map(
@@ -311,6 +312,45 @@ impl Line {
         )
     }
 
+    pub fn sample_parallel_lines(&self, steps:usize, distance:f32) -> impl Iterator<Item = Line> {
+        let (x1,y1,x2,y2,x,y) = self.points().unwrap_or((0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+        let ol = self.orthogonal_line_through(x, y, distance);
+        let ol1 = self.orthogonal_line_through(x1, y1, distance);
+        let ol2 = self.orthogonal_line_through(x2, y2, distance);
+        let k = self.k;
+        let t = self.line_type;
+        let switch = self.line_type == LineType::FY;
+        ol.sample_coordinates(steps).zip(ol1.sample_coordinates(steps).zip(ol2.sample_coordinates(steps))).map(
+            move |((x,y),((x1,y1),(x2,y2)))| {
+                if switch {
+                    Line {
+                        line_type: t,
+                        point: WeightedPoint {
+                            x: y,
+                            y: x,
+                            weight: 1.0,
+                        },
+                        k: k,
+                        x1: y1,
+                        x2: y2,
+                    }
+                }
+                else{
+                    Line {
+                        line_type: t,
+                        point: WeightedPoint {
+                            x: x,
+                            y: y,
+                            weight: 1.0,
+                        },
+                        k: k,
+                        x1: x1,
+                        x2: x2,
+                    }
+                }
+            }
+        )
+    }
 
     pub fn fit_weighted_points<'a, I>(points: I) -> Self
     where

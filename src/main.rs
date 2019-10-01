@@ -207,6 +207,8 @@ fn run() -> opencv::Result<()> {
         //        imgproc::line(&mut colored,core::Point::new(100,200),core::Point::new(200,300),color,3,8,0);
         //        imgproc::rectangle(&mut colored,core::Rect::new(100,200,30,30),color,3,0,0);
 
+
+/*
         let line = Line::new_from_angle(a, 320.0, 240.0, 100.0);
         let color = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
         println!("{:?}",line);
@@ -250,6 +252,20 @@ fn run() -> opencv::Result<()> {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
             }
         }
+        for pl in line.sample_parallel_lines(10, 100.0){
+            if let Some((x1, y1, x2, y2, x, y)) = pl.points_i32() {
+                println!("  PL {:?} {} {}",pl,x,y);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 4, y - 4, 9, 9),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
+            }
+        }
 
         let line = Line::new_from_angle(a+64, 320.0, 240.0, 100.0);
         let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
@@ -263,6 +279,30 @@ fn run() -> opencv::Result<()> {
             let y = y as i32;
             imgproc::line(&mut colored,core::Point::new(x,y),core::Point::new(x,y),color,3,8,0);
 
+        }
+*/
+
+        let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
+        let line = Line::new_from_angle(a, 320.0, 200.0, 100.0);
+        for sl in line.sample_parallel_lines(50, 50.0){
+            for (i,(x,y)) in sl.grid_coordinates(340,260).enumerate(){
+                if (i%4!=0){continue;}
+                imgproc::line(&mut colored,core::Point::new(x as i32,y as i32),core::Point::new(x as i32,y as i32),color,1,8,0);
+            }
+            /*
+            if let Some((x1, y1, x2, y2, x, y)) = sl.points_i32() {
+                println!("  SL {:?} {} {}",sl,x,y);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 4, y - 4, 9, 9),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
+            }
+            */
         }
 
         grids.fit_horizontal();

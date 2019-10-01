@@ -36,7 +36,15 @@ impl Grids {
         self.main_angle = 0;
     }
 
-    pub fn line_grid(&mut self) -> &mut LineGrid {
+    pub fn line_grid(&self) -> &LineGrid {
+        if (self.line_grid1_is_active) {
+            &self.line_grid1
+        } else {
+            &self.line_grid2
+        }
+    }
+
+    pub fn line_grid_mut(&mut self) -> &mut LineGrid {
         if (self.line_grid1_is_active) {
             &mut self.line_grid1
         } else {
@@ -118,4 +126,11 @@ impl Grids {
         target.reduce_all(source);
     }
 
+    pub fn find_line(&self, x:usize, y:usize, angle:u8, distance:f32, length:f32) -> Line{
+        let line = Line::new_from_angle(angle, x as f32, y as f32, length);
+        for sl in line.sample_parallel_lines((distance*2.0) as usize, distance){
+
+        }
+        line 
+    }
 }
