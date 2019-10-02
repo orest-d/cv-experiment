@@ -150,7 +150,7 @@ impl Grids {
     }
 
     pub fn find_line(&self, x:usize, y:usize, angle:u8, delta:u8, distance:f32, length:f32, c2:bool) -> Line{
-        let line = Line::new_from_angle(angle, x as f32, y as f32, length);
+        let line = Line::new_from_angle(angle+64, x as f32, y as f32, length);
         let mut largest:Largest<Line> = Largest::new();
 
         for sl in line.sample_parallel_lines((distance*2.0) as usize, distance){
