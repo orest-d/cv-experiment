@@ -55,6 +55,38 @@ pub fn region_indices(
 }
 
 
+
+#[derive(Debug, Copy, Clone)]
+pub struct Largest<T: Copy+Clone> {
+    pub max_value:f32,
+    pub max_item:Option<T>,
+} 
+
+impl<T> Largest<T> where T:Copy+Clone{
+    pub fn new()->Largest<T>{
+        Largest{
+            max_value:0.0,
+            max_item:None,
+        }
+    }
+
+    pub fn add(&mut self, value:f32, item:T){
+        match self.max_item{
+            Some(_) => {
+                if value>self.max_value{
+                    self.max_value = value;
+                    self.max_item = Some(item);
+                }
+            },
+            None => {
+                self.max_value = value;
+                self.max_item = Some(item);
+            }
+        }
+    }
+
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum TwoLargestCount{
     Empty,
@@ -201,6 +233,18 @@ mod tests {
         assert_eq!(angle_difference_c2(255, 128), 1);
         assert_eq!(angle_difference_c2(128, 1), 1);
         assert_eq!(angle_difference_c2(128, 255), 1);
+    }
+
+    #[test]
+    fn test_largest(){
+        let mut l:Largest<i32> = Largest::new();
+        assert_eq!(l.max_item, None);
+        l.add(1.0,123);
+        assert_eq!(l.max_item, Some(123));
+        l.add(2.0,23);
+        assert_eq!(l.max_item, Some(23));
+        l.add(1.0,234);
+        assert_eq!(l.max_item, Some(23));
     }
 
     #[test]

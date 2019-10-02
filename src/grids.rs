@@ -126,11 +126,39 @@ impl Grids {
         target.reduce_all(source);
     }
 
-    pub fn find_line(&self, x:usize, y:usize, angle:u8, distance:f32, length:f32) -> Line{
-        let line = Line::new_from_angle(angle, x as f32, y as f32, length);
-        for sl in line.sample_parallel_lines((distance*2.0) as usize, distance){
-
+    pub fn sample_line(&self, line:Line, angle:u8, delta:u8)->f32{
+        let g = &self.characteristics_grid;
+        let mut w = 0.0f32;
+        for (x,y) in line.grid_coordinates(g.cols, g.rows){
+            let c = g.get(x,y);
+            if angle_difference(angle,c.angle)<=delta{
+                w+=c.intensity as f32;
+            }
         }
-        line 
+        w
+    }
+    pub fn sample_line_c2(&self, line:Line, angle:u8, delta:u8)->f32{
+        let g = &self.characteristics_grid;
+        let mut w = 0.0f32;
+        for (x,y) in line.grid_coordinates(g.cols, g.rows){
+            let c = g.get(x,y);
+            if angle_difference_c2(angle,c.angle)<=delta{
+                w+=c.intensity as f32;
+            }
+        }
+        w
+    }
+
+    pub fn find_line(&self, x:usize, y:usize, angle:u8, delta:u8, distance:f32, length:f32, c2:bool) -> Line{
+        let line = Line::new_from_angle(angle, x as f32, y as f32, length);
+        let mut largest:Largest<Line> = Largest::new();
+
+        for sl in line.sample_parallel_lines((distance*2.0) as usize, distance){
+            let w = if c2 {self.sample_line_c2(sl, angle, delta)} else {self.sample_line(sl, angle, delta)};
+            let mut ll = sl;
+            ll.point.weight = w;
+            largest.add(w,ll);
+        }
+        largest.max_item.unwrap_or(Line::new())
     }
 }

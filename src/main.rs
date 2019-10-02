@@ -281,7 +281,7 @@ fn run() -> opencv::Result<()> {
 
         }
 */
-
+/*
         let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
         let line = Line::new_from_angle(a, 320.0, 200.0, 100.0);
         for sl in line.sample_parallel_lines(50, 50.0){
@@ -303,6 +303,40 @@ fn run() -> opencv::Result<()> {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
             }
             */
+        }
+        */
+        let color = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
+        let line = grids.find_line(320, 200, a, 8, 10.0, 20.0, true);
+        if line.point.weight>200.0{
+            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
+                println!("  FIND LINE {:?} {} {}",line,x,y);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 4, y - 4, 9, 9),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
+            }
+        }
+
+        let color = core::Scalar::new(255.0, 255.0, 0.0, 0.0);
+        let line = grids.find_line(320, 200, a+64, 8, 5.0, 50.0, true);
+        if line.point.weight>200.0{
+            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
+                println!("  FIND LINE {:?} {} {}",line,x,y);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 4, y - 4, 9, 9),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
+            }
         }
 
         grids.fit_horizontal();
