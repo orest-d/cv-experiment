@@ -101,10 +101,14 @@ fn convolution(
                 / 25;
 
             let mut sum: i32 = s * s + c * c;
-            sum /= 0xE0000;
+            sum /= 0xC0000;
             if sum > maxintensity {
                 maxintensity = sum;
             }
+            if sum<20{
+                sum=0;
+            }
+
             let a = (128f64 + 128f64 * (s as f64).atan2(c as f64) / pi) as u8;
             characteristics.set(
                 j,
@@ -127,6 +131,9 @@ fn convolution(
             //sum+=(a as i32)/8;
             sum = if sum > 255 { 255 } else { sum };
             destination[i * cols + j] = sum as u8;
+            if sum>20 && (a == 0 || a==255) {
+                destination[i * cols + j] = 255;
+            }
             //destination[i*cols+j]=a;
         }
     }
@@ -321,6 +328,38 @@ fn run() -> opencv::Result<()> {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
             }
         }
+        let color = core::Scalar::new(255.0, 100.0, 0.0, 0.0);
+        let line = grids.find_line_iterative(320, 200, a, 8, 4.0, 50.0, true,2,4,3.0);
+        if true{
+            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
+                println!("  FIND LINE {:?} {} {}",line,x,y);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 4, y - 4, 9, 9),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
+            }
+        }
+        let color = core::Scalar::new(0.0, 100.0, 255.0, 0.0);
+        let line = grids.find_line_iterative(320, 200, a+64, 8, 4.0, 50.0, true,2,4,3.0);
+        if true{
+            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
+                println!("  FIND LINE {:?} {} {}",line,x,y);
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x - 4, y - 4, 9, 9),
+                    color,
+                    1,
+                    1,
+                    0,
+                );
+                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
+            }
+        }
 /*
         let color = core::Scalar::new(255.0, 255.0, 0.0, 0.0);
         let line = grids.find_line(320, 200, a+64, 8, 5.0, 50.0, true);
@@ -339,6 +378,8 @@ fn run() -> opencv::Result<()> {
             }
         }
 */
+
+/*
         grids.fit_horizontal();
         grids.lines_from_neighbors();
         grids.reduce_area(4);
@@ -379,7 +420,7 @@ fn run() -> opencv::Result<()> {
                 );
             }
         }
-         
+*/         
         //        highgui::imshow(window, &gray)?;
         //        println!("Frame size {:?}, {:?}", frame.size(), frame);
         if frame.size()?.width > 0 {

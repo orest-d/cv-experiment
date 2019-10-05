@@ -150,10 +150,10 @@ impl Grids {
     }
 
     pub fn find_line(&self, x:usize, y:usize, angle:u8, delta:u8, distance:f32, length:f32, c2:bool) -> Line{
-        let line = Line::new_from_angle(angle+64, x as f32, y as f32, length);
+        let line = Line::new_from_angle(angle, x as f32, y as f32, length);
         let mut largest:Largest<Line> = Largest::new();
 
-        for sl in line.sample_parallel_lines((distance*2.0) as usize, distance){
+        for sl in line.sample_parallel_lines((distance*2.0) as usize, distance, 2){
             let w = if c2 {self.sample_line_c2(sl, angle, delta)} else {self.sample_line(sl, angle, delta)};
             let mut ll = sl;
             ll.point.weight = w;
@@ -161,4 +161,41 @@ impl Grids {
         }
         largest.max_item.unwrap_or(Line::new())
     }
+
+    pub fn fit_along(&self, line:Line, angle:u8, delta:u8, distance:usize) -> Line{
+        let g = &self.characteristics_grid;
+        let mut fit = LinearFit::new();
+        for (x,y) in line.points_around(g.cols, g.rows, distance){
+            let c = g.get(x, y);
+            if angle_difference(c.angle, angle) < delta {
+                fit.add(x as f32, y as f32, c.intensity as f32);
+            }
+        }
+        fit.line()
+    }
+
+    pub fn fit_along_c2(&self, line:Line, angle:u8, delta:u8, distance:usize) -> Line{
+        let g = &self.characteristics_grid;
+        let mut fit = LinearFit::new();
+        for (x,y) in line.points_around(g.cols, g.rows, distance){
+            let c = g.get(x, y);
+            if angle_difference_c2(c.angle, angle) < delta {
+                fit.add(x as f32, y as f32, c.intensity as f32);
+            }
+        }
+        fit.line()
+    }
+
+    pub fn find_line_iterative(&self, x:usize, y:usize, angle:u8, delta:u8, distance:f32, length:f32, c2:bool, fit_distance:usize, iterations:u32, factor:f32) -> Line{
+        let mut line = self.find_line(x, y, angle, delta, distance, length, c2);
+        line = if c2 {self.fit_along_c2(line, angle, delta, fit_distance)} else {self.fit_along(line, angle, delta, fit_distance)};
+        let xmax = self.characteristics_grid.cols as f32;
+        let ymax = self.characteristics_grid.rows as f32;
+        for i in 0..iterations{
+            line = line.expand(factor).clamp_ends(xmax, ymax);
+            line = if c2 {self.fit_along_c2(line, angle, delta, fit_distance)} else {self.fit_along(line, angle, delta, fit_distance)};
+        }
+        line.clamp_ends(xmax, ymax)
+    }
+
 }

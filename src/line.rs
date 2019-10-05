@@ -150,20 +150,20 @@ impl Line {
         
         if (angle>=224) || (angle<32) || (angle>=96 && angle<160) {
             Line{
-                line_type:LineType::FY,
-                point:WeightedPoint{x:y,y:x,weight:1.0},
-                k:a.sin()/a.cos(),
-                x1:y-length*a.cos(),
-                x2:y+length*a.cos()
+                line_type:LineType::FX,
+                point:WeightedPoint{x:x,y:y,weight:1.0},
+                k:-a.sin()/a.cos(),
+                x1:x-length*a.cos().abs(),
+                x2:x+length*a.cos().abs()
                 }
         }
         else{
             Line{
-                line_type:LineType::FX,
-                point:WeightedPoint{x:x,y:y,weight:1.0},
-                k:a.cos()/a.sin(),
-                x1:x-length*a.sin(),
-                x2:x+length*a.sin()
+                line_type:LineType::FY,
+                point:WeightedPoint{x:y,y:x,weight:1.0},
+                k:-a.cos()/a.sin(),
+                x1:y-length*a.sin().abs(),
+                x2:y+length*a.sin().abs()
                 }
         }
     }
@@ -284,8 +284,8 @@ impl Line {
                     weight: 1.0
                 },
                 k: -self.k,
-                x1: y-dk,
-                x2: y+dk,
+                x1: y-dk.abs(),
+                x2: y+dk.abs(),
             },
             LineType::FY => Line{
                 line_type: LineType::FX,
@@ -295,13 +295,32 @@ impl Line {
                     weight: 1.0
                 },
                 k: -self.k,
-                x1: x-dk,
-                x2: x+dk,
+                x1: x-dk.abs(),
+                x2: x+dk.abs(),
             },
             _ => Line::new()
         }
     }
 
+    pub fn line1(&self) -> Line{
+        Line{
+            line_type: self.line_type,
+            point: self.point,
+            k: self.k,
+            x1: self.point.x,
+            x2: self.x2,
+        }
+    }
+
+    pub fn line2(&self) -> Line{
+        Line{
+            line_type: self.line_type,
+            point: self.point,
+            k: self.k,
+            x1: self.x1,
+            x2: self.point.x,
+        }
+    }
 
     pub fn sample_orthogonal_lines(&self, steps:usize, length:f32) -> impl Iterator<Item = Line> {        
         let line = *self;
@@ -312,11 +331,19 @@ impl Line {
         )
     }
 
-    pub fn sample_parallel_lines(&self, steps:usize, distance:f32) -> impl Iterator<Item = Line> {
+    pub fn side(&self, side:u8) -> Line{
+        match side {
+            1 => self.line1(),
+            2 => self.line2(),
+            _ => *self
+        }
+    }
+
+    pub fn sample_parallel_lines(&self, steps:usize, distance:f32, side:u8) -> impl Iterator<Item = Line> {
         let (x1,y1,x2,y2,x,y) = self.points().unwrap_or((0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
-        let ol = self.orthogonal_line_through(x, y, distance);
-        let ol1 = self.orthogonal_line_through(x1, y1, distance);
-        let ol2 = self.orthogonal_line_through(x2, y2, distance);
+        let ol = self.orthogonal_line_through(x, y, distance).side(side);
+        let ol1 = self.orthogonal_line_through(x1, y1, distance).side(side);
+        let ol2 = self.orthogonal_line_through(x2, y2, distance).side(side);
         let k = self.k;
         let t = self.line_type;
         let switch = self.line_type == LineType::FY;
@@ -350,6 +377,38 @@ impl Line {
                 }
             }
         )
+    }
+
+    pub fn expand(&self, factor:f32) -> Line{
+        let x = self.point.x;
+        let x1 = self.x1;
+        let x2 = self.x2;
+        Line {
+            line_type: self.line_type,
+            point: self.point,
+            k: self.k,
+            x1: x + (x1-x)*factor,
+            x2: x + (x2-x)*factor,
+        }
+    }
+    pub fn clamp_ends(&self, xmax:f32, ymax:f32) -> Line{
+        match self.line_type {
+            LineType::FX => Line {
+                line_type: self.line_type,
+                point: self.point,
+                k: self.k,
+                x1: self.x1.max(0.0).min(xmax),
+                x2: self.x2.max(0.0).min(xmax),
+            },
+            LineType::FY => Line {
+                line_type: self.line_type,
+                point: self.point,
+                k: self.k,
+                x1: self.x1.max(0.0).min(ymax),
+                x2: self.x2.max(0.0).min(ymax),
+            },
+            _ => *self
+        }
     }
 
     pub fn fit_weighted_points<'a, I>(points: I) -> Self
