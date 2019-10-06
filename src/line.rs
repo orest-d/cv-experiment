@@ -339,6 +339,18 @@ impl Line {
         }
     }
 
+    pub fn center_midpoint(&self) -> Line{
+        let x = (self.x1+self.x2)/2.0;
+        let y = self.point.y + self.k*(x-self.point.x);
+        Line{
+            line_type: self.line_type,
+            point: WeightedPoint{x:x, y:y, weight:self.point.weight},
+            k: self.k,
+            x1: self.x1,
+            x2: self.x2
+        }
+    }
+
     pub fn sample_parallel_lines(&self, steps:usize, distance:f32, side:u8) -> impl Iterator<Item = Line> {
         let (x1,y1,x2,y2,x,y) = self.points().unwrap_or((0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
         let ol = self.orthogonal_line_through(x, y, distance).side(side);
@@ -347,6 +359,7 @@ impl Line {
         let k = self.k;
         let t = self.line_type;
         let switch = self.line_type == LineType::FY;
+        let weight = self.point.weight;
         ol.sample_coordinates(steps).zip(ol1.sample_coordinates(steps).zip(ol2.sample_coordinates(steps))).map(
             move |((x,y),((x1,y1),(x2,y2)))| {
                 if switch {
@@ -355,7 +368,7 @@ impl Line {
                         point: WeightedPoint {
                             x: y,
                             y: x,
-                            weight: 1.0,
+                            weight: weight,
                         },
                         k: k,
                         x1: y1,
@@ -368,7 +381,7 @@ impl Line {
                         point: WeightedPoint {
                             x: x,
                             y: y,
-                            weight: 1.0,
+                            weight: weight,
                         },
                         k: k,
                         x1: x1,
@@ -377,6 +390,23 @@ impl Line {
                 }
             }
         )
+    }
+
+    pub fn parallel_line(&self, offset:f32) -> Line{
+        let (nx,ny) = self.raw_normal();
+        let ox = offset*nx;
+        let oy = offset*ny;
+        Line {
+            line_type: self.line_type,
+            point: WeightedPoint {
+                x: self.point.x + ox,
+                y: self.point.y + oy,
+                weight: self.point.weight,
+            },
+            k: self.k,
+            x1: self.x1 + ox,
+            x2: self.x2 + ox,
+        }
     }
 
     pub fn expand(&self, factor:f32) -> Line{
@@ -391,6 +421,18 @@ impl Line {
             x2: x + (x2-x)*factor,
         }
     }
+
+    pub fn with_length(&self, new_length:f32) -> Line{
+       let (dx, dy) = self.raw_direction();
+       Line{
+           line_type: self.line_type,
+           point: self.point,
+           k: self.k,
+           x1: self.point.x - dx*new_length/2.0,
+           x2: self.point.x + dx*new_length/2.0,
+       }
+    }
+
     pub fn clamp_ends(&self, xmax:f32, ymax:f32) -> Line{
         match self.line_type {
             LineType::FX => Line {
@@ -406,6 +448,26 @@ impl Line {
                 k: self.k,
                 x1: self.x1.max(0.0).min(ymax),
                 x2: self.x2.max(0.0).min(ymax),
+            },
+            _ => *self
+        }
+    }
+
+    pub fn exapand_to_edge(&self, xmax:f32, ymax:f32) -> Line{
+        match self.line_type {
+            LineType::FX => Line {
+                line_type: self.line_type,
+                point: self.point,
+                k: self.k,
+                x1: 0.0,
+                x2: xmax,
+            },
+            LineType::FY => Line {
+                line_type: self.line_type,
+                point: self.point,
+                k: self.k,
+                x1: 0.0,
+                x2: ymax,
             },
             _ => *self
         }
@@ -506,12 +568,17 @@ impl Line {
         }        
     }
 
-    pub fn direction(&self) -> (f32, f32) {
+    pub fn raw_direction(&self) -> (f32, f32) {
         let normal = (1.0 + self.k * self.k).sqrt();
+        (1.0 / normal, self.k / normal)
+    }
+
+    pub fn direction(&self) -> (f32, f32) {
+        let (dx, dy) = self.raw_direction();
         match self.line_type {
             LineType::Empty => (0.0, 0.0),
-            LineType::FX => (1.0 / normal, self.k / normal),
-            LineType::FY => (self.k / normal, 1.0 / normal),
+            LineType::FX => (dx, dy),
+            LineType::FY => (dy, dx),
         }
     }
 

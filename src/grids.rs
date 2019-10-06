@@ -13,6 +13,13 @@ pub struct Grids {
     pub line_grid2: LineGrid,
     pub line_grid1_is_active: bool,
     pub main_angle: u8,
+    pub angle_delta: u8,
+    pub c2: bool,
+    pub fit_distance: usize,
+    pub fit_iterations: u32,
+    pub fit_extension_factor: f32,
+    pub scan_line_length: f32,
+    pub grid_line_scan_step:f32
 }
 
 impl Grids {
@@ -24,6 +31,13 @@ impl Grids {
             line_grid2: LineGrid::new(640 / 8 - 1, 480 / 8 - 1),
             line_grid1_is_active: true,
             main_angle: 0,
+            angle_delta: 8,
+            c2: true,
+            fit_distance: 2,
+            fit_iterations: 4,
+            fit_extension_factor: 3.0,
+            scan_line_length: 40.0,
+            grid_line_scan_step: 8.0
         }
     }
 
@@ -126,46 +140,59 @@ impl Grids {
         target.reduce_all(source);
     }
 
-    pub fn sample_line(&self, line:Line, angle:u8, delta:u8)->f32{
+    pub fn sample_line(&self, line: Line, angle: u8, delta: u8) -> f32 {
         let g = &self.characteristics_grid;
         let mut w = 0.0f32;
-        for (x,y) in line.grid_coordinates(g.cols, g.rows){
-            let c = g.get(x,y);
-            if angle_difference(angle,c.angle)<=delta{
-                w+=c.intensity as f32;
+        for (x, y) in line.grid_coordinates(g.cols, g.rows) {
+            let c = g.get(x, y);
+            if angle_difference(angle, c.angle) <= delta {
+                w += c.intensity as f32;
             }
         }
         w
     }
-    pub fn sample_line_c2(&self, line:Line, angle:u8, delta:u8)->f32{
+    pub fn sample_line_c2(&self, line: Line, angle: u8, delta: u8) -> f32 {
         let g = &self.characteristics_grid;
         let mut w = 0.0f32;
-        for (x,y) in line.grid_coordinates(g.cols, g.rows){
-            let c = g.get(x,y);
-            if angle_difference_c2(angle,c.angle)<=delta{
-                w+=c.intensity as f32;
+        for (x, y) in line.grid_coordinates(g.cols, g.rows) {
+            let c = g.get(x, y);
+            if angle_difference_c2(angle, c.angle) <= delta {
+                w += c.intensity as f32;
             }
         }
         w
     }
 
-    pub fn find_line(&self, x:usize, y:usize, angle:u8, delta:u8, distance:f32, length:f32, c2:bool) -> Line{
+    pub fn find_line(
+        &self,
+        x: usize,
+        y: usize,
+        angle: u8,
+        delta: u8,
+        distance: f32,
+        length: f32,
+        c2: bool,
+    ) -> Line {
         let line = Line::new_from_angle(angle, x as f32, y as f32, length);
-        let mut largest:Largest<Line> = Largest::new();
+        let mut largest: Largest<Line> = Largest::new();
 
-        for sl in line.sample_parallel_lines((distance*2.0) as usize, distance, 2){
-            let w = if c2 {self.sample_line_c2(sl, angle, delta)} else {self.sample_line(sl, angle, delta)};
+        for sl in line.sample_parallel_lines((distance * 2.0) as usize, distance, 2) {
+            let w = if c2 {
+                self.sample_line_c2(sl, angle, delta)
+            } else {
+                self.sample_line(sl, angle, delta)
+            };
             let mut ll = sl;
             ll.point.weight = w;
-            largest.add(w,ll);
+            largest.add(w, ll);
         }
         largest.max_item.unwrap_or(Line::new())
     }
 
-    pub fn fit_along(&self, line:Line, angle:u8, delta:u8, distance:usize) -> Line{
+    pub fn fit_along(&self, line: Line, angle: u8, delta: u8, distance: usize) -> Line {
         let g = &self.characteristics_grid;
         let mut fit = LinearFit::new();
-        for (x,y) in line.points_around(g.cols, g.rows, distance){
+        for (x, y) in line.points_around(g.cols, g.rows, distance) {
             let c = g.get(x, y);
             if angle_difference(c.angle, angle) < delta {
                 fit.add(x as f32, y as f32, c.intensity as f32);
@@ -174,10 +201,10 @@ impl Grids {
         fit.line()
     }
 
-    pub fn fit_along_c2(&self, line:Line, angle:u8, delta:u8, distance:usize) -> Line{
+    pub fn fit_along_c2(&self, line: Line, angle: u8, delta: u8, distance: usize) -> Line {
         let g = &self.characteristics_grid;
         let mut fit = LinearFit::new();
-        for (x,y) in line.points_around(g.cols, g.rows, distance){
+        for (x, y) in line.points_around(g.cols, g.rows, distance) {
             let c = g.get(x, y);
             if angle_difference_c2(c.angle, angle) < delta {
                 fit.add(x as f32, y as f32, c.intensity as f32);
@@ -186,16 +213,110 @@ impl Grids {
         fit.line()
     }
 
-    pub fn find_line_iterative(&self, x:usize, y:usize, angle:u8, delta:u8, distance:f32, length:f32, c2:bool, fit_distance:usize, iterations:u32, factor:f32) -> Line{
+    pub fn find_line_iterative(
+        &self,
+        x: usize,
+        y: usize,
+        angle: u8,
+        delta: u8,
+        distance: f32,
+        length: f32,
+        c2: bool,
+        fit_distance: usize,
+        iterations: u32,
+        factor: f32,
+    ) -> Line {
         let mut line = self.find_line(x, y, angle, delta, distance, length, c2);
-        line = if c2 {self.fit_along_c2(line, angle, delta, fit_distance)} else {self.fit_along(line, angle, delta, fit_distance)};
+        line = if c2 {
+            self.fit_along_c2(line, angle, delta, fit_distance)
+        } else {
+            self.fit_along(line, angle, delta, fit_distance)
+        };
         let xmax = self.characteristics_grid.cols as f32;
         let ymax = self.characteristics_grid.rows as f32;
-        for i in 0..iterations{
+        for i in 0..iterations {
             line = line.expand(factor).clamp_ends(xmax, ymax);
-            line = if c2 {self.fit_along_c2(line, angle, delta, fit_distance)} else {self.fit_along(line, angle, delta, fit_distance)};
+            line = if c2 {
+                self.fit_along_c2(line, angle, delta, fit_distance)
+            } else {
+                self.fit_along(line, angle, delta, fit_distance)
+            };
         }
         line.clamp_ends(xmax, ymax)
     }
 
+    pub fn refine_line_iterative(
+        &self,
+        line: Line,
+        angle: u8,
+        delta: u8,
+        c2: bool,
+        fit_distance: usize,
+        iterations: u32,
+        factor: f32,
+    ) -> Line {
+        let mut line = line;
+        line = if c2 {
+            self.fit_along_c2(line, angle, delta, fit_distance)
+        } else {
+            self.fit_along(line, angle, delta, fit_distance)
+        };
+        let xmax = self.characteristics_grid.cols as f32;
+        let ymax = self.characteristics_grid.rows as f32;
+        for i in 0..iterations {
+            line = line.expand(factor).clamp_ends(xmax, ymax);
+            line = if c2 {
+                self.fit_along_c2(line, angle, delta, fit_distance)
+            } else {
+                self.fit_along(line, angle, delta, fit_distance)
+            };
+        }
+        line.clamp_ends(xmax, ymax)
+    }
+
+    pub fn scan_lines(
+        &mut self,
+        x: usize,
+        y: usize,
+        orthogonal:bool
+    ) {
+        let angle = if orthogonal {self.main_angle + 64} else {self.main_angle};
+        let delta = self.angle_delta;
+        let scan_line_length = self.scan_line_length;
+        let grid_line_scan_step = self.grid_line_scan_step;
+        let xmax = self.characteristics_grid.cols;
+        let ymax = self.characteristics_grid.rows;
+        let diagonal = ((xmax*xmax+ymax*ymax) as f32).sqrt();
+        let c2 = self.c2;
+        let fit_distance = self.fit_distance;
+        let fit_iterations = self.fit_iterations;
+        let fit_extension_factor = self.fit_extension_factor;
+        let next_line_offset = grid_line_scan_step + fit_distance as f32;
+
+        let xx = x as f32;
+        let yy = y as f32;
+
+        let axis = self.find_line_iterative(x, y, angle, delta, grid_line_scan_step*2.0, scan_line_length, c2, fit_distance, fit_iterations, fit_extension_factor);
+        self.line_grid_mut().push(axis);
+        let mut line = axis;
+/*
+        line = line.parallel_line(next_line_offset).with_length(scan_line_length);
+        self.line_grid_mut().push(line);
+        line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+        self.line_grid_mut().push(line);
+*/
+        
+        for i in 0..20{
+            line = axis.parallel_line(next_line_offset*i as f32).with_length(scan_line_length);
+            line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+            self.line_grid_mut().push(line);
+        }
+        let mut line = axis;
+        for i in 0..20{
+            line = axis.parallel_line(-next_line_offset*i as f32).with_length(scan_line_length);
+            line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+            self.line_grid_mut().push(line);
+        }
+        
+    }
 }
