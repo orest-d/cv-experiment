@@ -472,6 +472,22 @@ impl Line {
             _ => *self
         }
     }
+    pub fn intersection(&self, line:Line) -> Option<(f32,f32)>{
+        if let (Some((ax,ay)),Some((bx,by))) = (self.midpoint(),line.midpoint()){
+            let (ux,uy) = self.direction();
+            let (vx,vy) = line.direction();
+            let dx = bx-ax;
+            let dy = by-ay;
+            solve2x2(
+                ux, uy,
+                -vx, -vy,
+                dx, dy
+            ).map(|(s,t)| (ax + s*ux, ay + s*uy))
+        }
+        else{
+            None
+        }
+    }
 
     pub fn fit_weighted_points<'a, I>(points: I) -> Self
     where
@@ -619,6 +635,10 @@ impl Line {
         else{
             None
         }
+    }
+
+    pub fn f(&self, x:f32)->f32{
+        self.point.y + self.k*(x-self.point.x)
     }
 
     pub fn as_fx(&self) -> Line {
@@ -895,4 +915,24 @@ mod tests {
         assert_eq!(line.x2, 4.0);
     }
 
+    #[test]
+    fn test_intersection() {
+        let mut fit = LinearFit::new();
+        fit.add(0.0, 0.0, 1.0);
+        fit.add(1.0, 1.0, 1.0);
+
+        let line1 = fit.line();
+        fit.reset();
+        fit.add(2.0, 0.0, 1.0);
+        fit.add(2.0, 1.0, 1.0);
+        let line2 = fit.line();
+
+        if let Some((x,y)) = line1.intersection(line2){
+            assert_eq!(x, 2.0);
+            assert_eq!(y, 2.0);
+        }
+        else {
+            assert!(false);
+        }
+    }
 }

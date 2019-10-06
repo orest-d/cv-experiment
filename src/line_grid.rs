@@ -5,6 +5,7 @@ use super::utils::*;
 const REGION_SIZE: usize = 8;
 const LINE_BUFFER_SIZE: usize = (640 / REGION_SIZE) * (480 / REGION_SIZE);
 
+
 pub struct LineGrid {
     pub cols: usize,
     pub rows: usize,

@@ -5,6 +5,43 @@ use super::line_grid::*;
 use super::utils::*;
 
 const ANGLE_DELTA: u8 = 10;
+const LINECOUNT:usize = 128;
+const LINECOUNT_HALF:usize = 64;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Parallels{
+    pub parallel_axis:Line,
+    pub orthogonal_axis:Line,
+    pub x:Line,
+    pub y:Line,
+    pub k:Line,
+}
+
+impl Parallels{
+    pub fn new() -> Parallels{
+        Parallels{
+            parallel_axis: Line::new(),
+            orthogonal_axis: Line::new(),
+            x:Line::new(),
+            y:Line::new(),
+            k:Line::new(),
+        }
+    }
+    pub fn line(&self, i:f32, length:f32) -> Line{
+        let x = self.x.f(i);
+        let y = self.y.f(i);
+        let k = self.k.f(i);
+        let mut line = self.orthogonal_axis.orthogonal_line_through(x, y, length);
+        line.k = k;
+        line
+    }
+
+    pub fn point(&self, i:f32) -> (f32, f32){
+        let x = self.x.f(i);
+        let y = self.y.f(i);
+        (x,y)
+    }
+}
 
 pub struct Grids {
     pub characteristics_grid: CharacteristicsGrid,
@@ -31,7 +68,7 @@ impl Grids {
             line_grid2: LineGrid::new(640 / 8 - 1, 480 / 8 - 1),
             line_grid1_is_active: true,
             main_angle: 0,
-            angle_delta: 8,
+            angle_delta: ANGLE_DELTA,
             c2: true,
             fit_distance: 2,
             fit_iterations: 4,
@@ -279,7 +316,7 @@ impl Grids {
         x: usize,
         y: usize,
         orthogonal:bool
-    ) {
+    ) -> Parallels {
         let angle = if orthogonal {self.main_angle + 64} else {self.main_angle};
         let delta = self.angle_delta;
         let scan_line_length = self.scan_line_length;
@@ -297,6 +334,7 @@ impl Grids {
         let yy = y as f32;
 
         let axis = self.find_line_iterative(x, y, angle, delta, grid_line_scan_step*2.0, scan_line_length, c2, fit_distance, fit_iterations, fit_extension_factor);
+        let orthogonal = axis.orthogonal_line_through(xx, yy, 100.0);
         self.line_grid_mut().push(axis);
         let mut line = axis;
 /*
@@ -305,18 +343,87 @@ impl Grids {
         line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
         self.line_grid_mut().push(line);
 */
-        
-        for i in 0..20{
-            line = axis.parallel_line(next_line_offset*i as f32).with_length(scan_line_length);
-            line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
-            self.line_grid_mut().push(line);
-        }
-        let mut line = axis;
-        for i in 0..20{
+
+        let mut lines = [Line::new(); LINECOUNT];
+        let mut distances = [0.0f32; LINECOUNT];
+        let mut line_count=0usize;
+        let mut add_line = |line:Line|{
+            if line_count<lines.len(){
+                if let Some((x,y)) = line.midpoint(){
+                    lines[line_count]=line;
+                    distances[line_count]=axis.distance(x, y);
+                    line_count+=1;
+                }
+            }
+        };
+
+        for i in (0..LINECOUNT_HALF).rev(){
             line = axis.parallel_line(-next_line_offset*i as f32).with_length(scan_line_length);
             line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+            add_line(line);
             self.line_grid_mut().push(line);
         }
-        
+        add_line(axis);
+        for i in (0..LINECOUNT_HALF){
+        let mut line = axis;
+            line = axis.parallel_line(-next_line_offset*i as f32).with_length(scan_line_length);
+            line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+            add_line(line);
+            self.line_grid_mut().push(line);
+        }
+
+        let mut parallels = Parallels::new();
+        parallels.parallel_axis = axis;
+        parallels.orthogonal_axis = orthogonal;
+
+        if line_count>2{
+            let mut stat1 = Statistics::new();
+            let mut stat2 = Statistics::new();
+            for i in 1..line_count{
+                let dist = (distances[i]-distances[i-1]).abs();
+                stat1.add(dist, 1.0);
+            }
+            for i in 1..line_count{
+                let dist = (distances[i]-distances[i-1]).abs();
+                stat2.add_average(dist, 1.0, &stat1, 1.0);
+            }
+            let mean_distance = stat2.mean();
+            let mut x_fit = LinearFit::new();
+            let mut y_fit = LinearFit::new();
+            let mut k_fit = LinearFit::new();
+
+            let line = lines[0];
+            let (x0,y0) = if let Some((x,y)) = orthogonal.intersection(line){
+                x_fit.add(0.0, x, line.length());                
+                y_fit.add(0.0, y, line.length());                
+                k_fit.add(0.0, line.k, line.length());
+                (x, y)               
+            }
+            else{
+                (0.0, 0.0)
+            };
+
+            for i in 1..line_count{
+                let line = lines[i];
+                if let Some((x,y)) = orthogonal.intersection(line){
+                    let dx = x-x0;
+                    let dy = y-y0;
+                    let j = ((dx*dx+dy*dy).sqrt()/mean_distance).round();
+                    println!("j={} x={} y={}",j,x,y);
+                    x_fit.add(j, x, line.length());                
+                    y_fit.add(j, y, line.length());                
+                    k_fit.add(j, line.k, line.length());                    
+                }
+            }
+            parallels.x = x_fit.line();
+            parallels.y = y_fit.line();
+            parallels.k = k_fit.line();
+            for i in 0..3{
+                let (x,y)=parallels.point(i as f32);
+                println!("i={} x={} y={}",i,x,y);
+            }
+        }
+        parallels
+
     }
 }

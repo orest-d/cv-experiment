@@ -361,7 +361,9 @@ fn run() -> opencv::Result<()> {
             }
         }
         grids.line_grid_mut().reset();
-        grids.scan_lines(320, 200, false);
+        let parallels = grids.scan_lines(320, 200, false);
+
+        /*
         grids.scan_lines(120, 200, false);
         grids.scan_lines(520, 200, false);
         grids.scan_lines(320, 100, false);
@@ -372,6 +374,7 @@ fn run() -> opencv::Result<()> {
         grids.scan_lines(320, 100, true);
         grids.scan_lines(320, 300, true);
         grids.reduce_all();
+        */
         let color_mid = core::Scalar::new(0.0, 128.0, 0.0, 0.0);
         let color_line = core::Scalar::new(100.0, 255.0, 100.0, 0.0);
         for line in grids.line_grid().data.iter() {
@@ -387,7 +390,45 @@ fn run() -> opencv::Result<()> {
                 );
             }
         }
+        let color_mid = core::Scalar::new(128.0, 128.0, 0.0, 0.0);
+        let color_line = core::Scalar::new(255.0, 255.0, 100.0, 0.0);
+//        println!("PARALLELS");
+//        println!("{:?}",parallels);
+        for i in 0..10{
+            let (x,y) = parallels.point(i as f32);
+//            println!("{}   {:?}",i,(x, y));
+            if x>0.0 && y>0.0{
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x as i32 - 2, y as i32 - 2, 5, 5),
+                    color_mid,
+                    1,
+                    1,
+                    0,
+                );
+            }
+        }
+        /*
+        for i in 0..10{
+            let line = parallels.line(i as f32, 50.0);
+            if let Some((x1, y1, x2, y2, x, y)) = line.clamp_ends(640.0, 480.0).points_i32() {
+                println!("{}   {:?}",i,(x1, y1, x2, y2, x, y));
+                if x1>=-200 && y1>=-200 && x2>=-200 && y2>=-200 && x>=-200 && y>=-200{
 
+                    imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
+                    imgproc::rectangle(
+                        &mut colored,
+                        core::Rect::new(x - 2, y - 2, 5, 5),
+                        color_mid,
+                        1,
+                        1,
+                        0,
+                    );
+                }
+            }
+
+        }
+*/
 /*
         let color = core::Scalar::new(255.0, 255.0, 0.0, 0.0);
         let line = grids.find_line(320, 200, a+64, 8, 5.0, 50.0, true);

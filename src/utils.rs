@@ -148,6 +148,88 @@ impl<T> TwoLargest<T> where T:Copy+Clone{
     }
 }
 
+
+#[derive(Debug, Clone, Copy)]
+pub struct Statistics {
+    x_sum: f32,
+    xx_sum: f32,
+    w_sum: f32,
+    xmin: Option<f32>,
+    xmax: Option<f32>,
+    count: usize,
+}
+
+impl Statistics {
+    pub fn new() -> Statistics {
+        Statistics {
+            x_sum: 0.0,
+            xx_sum: 0.0,
+            w_sum: 0.0,
+            xmin: None,
+            xmax: None,
+            count: 0,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.x_sum = 0.0;
+        self.xx_sum = 0.0;
+        self.w_sum = 0.0;
+        self.xmin = None;
+        self.xmax = None;
+        self.count = 0;
+    }
+
+    pub fn add(&mut self, x: f32, w: f32) {
+        self.x_sum += w * x;
+        self.xx_sum += w * x * x;
+        self.w_sum += w;
+        self.count += 1;
+        if w > 0.0 {
+            self.xmin = Some(self.xmin.map_or(x, |old| old.min(x)));
+            self.xmax = Some(self.xmax.map_or(x, |old| old.max(x)));
+        }
+    }
+
+    pub fn add_average(&mut self, x: f32, w: f32, stat:&Statistics, sigma_multiple:f32) {
+        if stat.xmin.map_or(true, |xm| x>xm){
+            if stat.xmax.map_or(true, |xm| x<xm){
+                let delta = stat.sigma()*sigma_multiple;
+                let mean = stat.mean();
+                if x>=mean-delta && x<=mean+delta{
+                    self.add(x,w);
+                }
+            }
+        }
+    }
+
+    pub fn mean(&self) ->f32 {
+        self.x_sum/self.w_sum
+    }
+
+    pub fn variance(&self) ->f32 {
+        let m = self.mean();
+        self.xx_sum/self.w_sum - m*m
+    }
+
+    pub fn sigma(&self) ->f32 {
+        self.variance().sqrt()
+    }
+}
+
+pub fn determinant(axx:f32, axy:f32, ayx:f32, ayy:f32) -> f32{
+    axx*ayy-axy*ayx
+}
+pub fn solve2x2(axx:f32, axy:f32, ayx:f32, ayy:f32, bx:f32, by:f32) -> Option<(f32,f32)>{
+    let d = determinant(axx, axy, ayx, ayy);
+    if d==0.0{
+        None
+    }
+    else{
+        Some((determinant(bx, axy, by, ayy)/d, determinant(axx,bx, ayx, by)/d))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
