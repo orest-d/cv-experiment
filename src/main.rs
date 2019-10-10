@@ -361,7 +361,8 @@ fn run() -> opencv::Result<()> {
             }
         }
         grids.line_grid_mut().reset();
-        let parallels = grids.scan_lines(320, 200, false);
+        grids.scan_lines_grid(false);
+        grids.scan_lines_grid(true);
 
         /*
         grids.scan_lines(120, 200, false);
@@ -392,6 +393,7 @@ fn run() -> opencv::Result<()> {
         }
         let color_mid = core::Scalar::new(128.0, 128.0, 0.0, 0.0);
         let color_line = core::Scalar::new(255.0, 255.0, 100.0, 0.0);
+        /*
 //        println!("PARALLELS");
 //        println!("{:?}",parallels);
         for i in 0..10{
@@ -408,6 +410,7 @@ fn run() -> opencv::Result<()> {
                 );
             }
         }
+        */
         /*
         for i in 0..10{
             let line = parallels.line(i as f32, 50.0);

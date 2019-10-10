@@ -316,6 +316,85 @@ impl Grids {
         x: usize,
         y: usize,
         orthogonal:bool
+    ){
+        let angle = if orthogonal {self.main_angle + 64} else {self.main_angle};
+        let delta = self.angle_delta;
+        let scan_line_length = self.scan_line_length;
+        let grid_line_scan_step = self.grid_line_scan_step;
+        let xmax = self.characteristics_grid.cols;
+        let ymax = self.characteristics_grid.rows;
+        let diagonal = ((xmax*xmax+ymax*ymax) as f32).sqrt();
+        let c2 = self.c2;
+        let fit_distance = self.fit_distance;
+        let fit_iterations = self.fit_iterations;
+        let fit_extension_factor = self.fit_extension_factor;
+        let next_line_offset = (grid_line_scan_step + fit_distance as f32).abs();
+
+        let xx = x as f32;
+        let yy = y as f32;
+
+        let axis = self.find_line_iterative(x, y, angle, delta, grid_line_scan_step*2.0, scan_line_length, c2, fit_distance, fit_iterations, fit_extension_factor);
+        let orthogonal = axis.orthogonal_line_through(xx, yy, 100.0);
+        self.line_grid_mut().push(axis);
+        let mut line = axis;
+/*
+        line = line.parallel_line(next_line_offset).with_length(scan_line_length);
+        self.line_grid_mut().push(line);
+        line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+        self.line_grid_mut().push(line);
+*/
+
+        let mut i=0.0;
+        loop{
+            line = axis.parallel_line(-next_line_offset*i).with_length(scan_line_length);
+            if let Some((x,y)) = line.midpoint(){
+                if x<0.0 || y<0.0 || x>=xmax as f32 || y>=ymax as f32{
+                    break;
+                }
+            }
+            else{
+                break;
+            }
+            line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+            self.line_grid_mut().push(line);
+            i+=1.0;
+        }
+        i=-1.0;
+        loop{
+            line = axis.parallel_line(-next_line_offset*i).with_length(scan_line_length);
+            if let Some((x,y)) = line.midpoint(){
+                if x<0.0 || y<0.0 || x>=xmax as f32 || y>=ymax as f32{
+                    break;
+                }
+            }
+            else{
+                break;
+            }
+            line = self.refine_line_iterative(line, angle, delta, c2, fit_distance, fit_iterations, fit_extension_factor);
+            self.line_grid_mut().push(line);
+            i-=1.0;
+        }
+    }
+
+    pub fn scan_lines_grid(&mut self, orthogonal:bool){
+        let angle = if orthogonal {self.main_angle + 64} else {self.main_angle};
+        let delta = self.angle_delta;
+        let xmax = self.characteristics_grid.cols;
+        let ymax = self.characteristics_grid.rows;
+        let diagonal = ((xmax*xmax+ymax*ymax) as f32).sqrt();
+
+        let axis = Line::new_from_angle(angle, xmax as f32/2.0, ymax as f32/2.0, diagonal);
+
+        for (x,y) in axis.sample_coordinates(20){
+            self.scan_lines(x as usize, y as usize, orthogonal);
+        }
+    }
+
+    pub fn parallels(
+        &mut self,
+        x: usize,
+        y: usize,
+        orthogonal:bool
     ) -> Parallels {
         let angle = if orthogonal {self.main_angle + 64} else {self.main_angle};
         let delta = self.angle_delta;
@@ -332,6 +411,9 @@ impl Grids {
 
         let xx = x as f32;
         let yy = y as f32;
+
+//        let axis = Line::new_from_angle(angle, xmax as f32/2.0, ymax as f32/2.0, diagonal);
+
 
         let axis = self.find_line_iterative(x, y, angle, delta, grid_line_scan_step*2.0, scan_line_length, c2, fit_distance, fit_iterations, fit_extension_factor);
         let orthogonal = axis.orthogonal_line_through(xx, yy, 100.0);
@@ -426,4 +508,5 @@ impl Grids {
         parallels
 
     }
+
 }
