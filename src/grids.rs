@@ -70,10 +70,10 @@ impl Grids {
             main_angle: 0,
             angle_delta: ANGLE_DELTA,
             c2: true,
-            fit_distance: 2,
+            fit_distance: 3,
             fit_iterations: 4,
             fit_extension_factor: 3.0,
-            scan_line_length: 40.0,
+            scan_line_length: 64.0,
             grid_line_scan_step: 8.0
         }
     }
@@ -385,9 +385,70 @@ impl Grids {
 
         let axis = Line::new_from_angle(angle, xmax as f32/2.0, ymax as f32/2.0, diagonal);
 
-        for (x,y) in axis.sample_coordinates(20){
+        for (x,y) in axis.line2().sample_coordinates(2){
             self.scan_lines(x as usize, y as usize, orthogonal);
         }
+        for (x,y) in axis.line1().sample_coordinates(2){
+            self.scan_lines(x as usize, y as usize, orthogonal);
+        }
+    }
+
+    pub fn intersections(&mut self) -> impl Iterator<Item = (f32,f32)>{
+        let xmax = self.characteristics_grid.cols;
+        let ymax = self.characteristics_grid.rows;
+        self.line_grid_mut().remove_empty();
+        let axis = self.line_grid().data[0];
+        let orthogonal_axis = axis.orthogonal_line_through(xmax as f32/2.0, ymax as f32/2.0, 100.0);
+        self.line_grid().lines().filter_map(
+            move |line|{
+                orthogonal_axis.intersection(line)
+            }
+        )
+    }
+
+    pub fn average_intersections(&mut self) -> impl Iterator<Item = (f32,f32)>{
+        const SAMPLE_SIZE:usize=50;
+        let mut xx = [0.0f32; SAMPLE_SIZE];
+        let mut yy = [0.0f32; SAMPLE_SIZE];
+        let mut count = 0usize;
+        for (x,y) in self.intersections(){
+            if count>=SAMPLE_SIZE{
+                break
+            }
+            xx[count]=x;
+            yy[count]=y;
+            count+=1;
+        }
+        let mut stat1 = Statistics::new();
+        let mut stat2 = Statistics::new();
+        for i in 1..count{
+            let x1 = xx[i-1];
+            let y1 = yy[i-1];
+            let x2 = xx[i];
+            let y2 = yy[i];
+            let dx = x2-x1;
+            let dy = y2-y1;
+            let d = (dx*dx+dy*dy).sqrt();
+            if d>4.0{
+                stat1.add(d, 1.0);
+            }
+        }
+        for i in 1..count{
+            let x1 = xx[i-1];
+            let y1 = yy[i-1];
+            let x2 = xx[i];
+            let y2 = yy[i];
+            let dx = x2-x1;
+            let dy = y2-y1;
+            let d = (dx*dx+dy*dy).sqrt();
+            if d>4.0{
+                stat2.add_average(d, 1.0, &stat1, 1.0);
+            }
+        }
+        let axis = self.line_grid().data[0];
+        let delta = stat2.mean(); 
+        let orthogonal_axis = axis.orthogonal_line_through(xx[0], yy[0], 3.0*delta);
+        orthogonal_axis.sample_coordinates(6)
     }
 
     pub fn parallels(

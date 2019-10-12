@@ -49,6 +49,24 @@ impl LineGrid {
         self.count+=1;
     }
 
+    pub fn lines(&self) -> impl Iterator<Item=Line>{
+        let data = self.data;
+        (0..self.count).map(move |i| data[i])
+    }
+
+    pub fn nonempty_lines(&self) -> impl Iterator<Item=Line>{
+        self.lines().filter(|line| line.line_type!=LineType::Empty)
+    }
+
+    pub fn remove_empty(&mut self){
+        let lines = self.nonempty_lines();
+        self.count = 0;
+        for line in lines{
+            self.push(line);
+        }
+    }
+
+
     pub fn from_characteristics(&mut self, grid: &CharacteristicsGrid, angle: u8, delta: u8) {
         for i in 0..self.cols {
             for j in 0..self.rows {

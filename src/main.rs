@@ -312,6 +312,7 @@ fn run() -> opencv::Result<()> {
             */
         }
         */
+        /*
         let color = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
         let line = grids.find_line(320, 200, a, 8, 4.0, 50.0, true);
         if line.point.weight>200.0{
@@ -360,22 +361,13 @@ fn run() -> opencv::Result<()> {
                 imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
             }
         }
+        */
         grids.line_grid_mut().reset();
         grids.scan_lines_grid(false);
-        grids.scan_lines_grid(true);
+//        grids.reduce_all();
+//        grids.reduce_all();
+//        grids.scan_lines_grid(true);
 
-        /*
-        grids.scan_lines(120, 200, false);
-        grids.scan_lines(520, 200, false);
-        grids.scan_lines(320, 100, false);
-        grids.scan_lines(320, 300, false);
-        grids.scan_lines(320, 200, true);
-        grids.scan_lines(120, 200, true);
-        grids.scan_lines(520, 200, true);
-        grids.scan_lines(320, 100, true);
-        grids.scan_lines(320, 300, true);
-        grids.reduce_all();
-        */
         let color_mid = core::Scalar::new(0.0, 128.0, 0.0, 0.0);
         let color_line = core::Scalar::new(100.0, 255.0, 100.0, 0.0);
         for line in grids.line_grid().data.iter() {
@@ -391,10 +383,36 @@ fn run() -> opencv::Result<()> {
                 );
             }
         }
-        let color_mid = core::Scalar::new(128.0, 128.0, 0.0, 0.0);
+        let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
+        for (x,y) in grids.intersections(){
+            println!("{:?}",(x,y));
+            imgproc::rectangle(
+                &mut colored,
+                core::Rect::new(x as i32 - 2, y as i32 - 2, 5, 5),
+                color_mid,
+                1,
+                1,
+                0,
+            );
+        }
+        let color_mid = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
+        for (x,y) in grids.average_intersections(){
+            println!("{:?}",(x,y));
+            if x>0.0 && y>0.0{
+                imgproc::rectangle(
+                    &mut colored,
+                    core::Rect::new(x as i32 - 2, y as i32 - 2, 5, 5),
+                    color_mid,
+                    1,
+                    1,
+                    0,
+                );
+            }
+        }
+/*
+       let color_mid = core::Scalar::new(128.0, 128.0, 0.0, 0.0);
         let color_line = core::Scalar::new(255.0, 255.0, 100.0, 0.0);
-        /*
-//        println!("PARALLELS");
+          println!("PARALLELS");
 //        println!("{:?}",parallels);
         for i in 0..10{
             let (x,y) = parallels.point(i as f32);
