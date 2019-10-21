@@ -5,6 +5,9 @@ use opencv::highgui;
 use opencv::imgproc;
 use opencv::videoio;
 
+use std::io::prelude::*;
+use std::fs::File;
+
 pub mod angle_histogram;
 pub mod characteristics_grid;
 pub mod fixed_histogram;
@@ -169,7 +172,7 @@ fn run() -> opencv::Result<()> {
     highgui::named_window(window, 1)?;
     println!("Window created");
     //   #[cfg(feature = "opencv-32")]
-    let mut cam = videoio::VideoCapture::new(0)?; // 0 is the default camera
+    let mut cam = videoio::VideoCapture::new(2)?; // 0 is the default camera
     println!("Camera created");
     //   #[cfg(not(feature = "opencv-32"))]
     //   let mut cam = videoio::VideoCapture::new_with_backend(0, videoio::CAP_ANY)?;  // 0 is the default camera
@@ -395,6 +398,13 @@ fn run() -> opencv::Result<()> {
                 0,
             );
         }
+        let mut f = File::create("test.txt").unwrap();
+        
+        f.write(b"x,y\n");
+        for (x,y) in grids.intersections(){
+            write!(f,"{},{}\n",x,y);
+        }
+         
         let color_mid = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
         for (x,y) in grids.average_intersections(){
             println!("{:?}",(x,y));

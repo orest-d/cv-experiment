@@ -81,11 +81,11 @@ impl LinearFit {
         self.add(wp.x, wp.y, wp.weight)
     }
 
-    pub fn add_line(&mut self, line: Line, weight:f32) {
-        if let Some((x1,y1,x2,y2,x,y)) = line.points(){
-            self.add(x,y,weight);
-            self.add(x1,y1,weight/2.0);
-            self.add(x2,y2,weight/2.0);
+    pub fn add_line(&mut self, line: Line, weight: f32) {
+        if let Some((x1, y1, x2, y2, x, y)) = line.points() {
+            self.add(x, y, weight);
+            self.add(x1, y1, weight / 2.0);
+            self.add(x2, y2, weight / 2.0);
         }
     }
 
@@ -144,166 +144,195 @@ impl Line {
         }
     }
 
-    pub fn new_from_angle(angle:u8, x:f32, y:f32, length:f32)->Line{
+    pub fn new_from_angle(angle: u8, x: f32, y: f32, length: f32) -> Line {
         let pi = std::f64::consts::PI as f32;
-        let a = (angle as f32)*pi/128.0;
-        
-        if (angle>=224) || (angle<32) || (angle>=96 && angle<160) {
-            Line{
-                line_type:LineType::FX,
-                point:WeightedPoint{x:x,y:y,weight:1.0},
-                k:-a.sin()/a.cos(),
-                x1:x-length*a.cos().abs(),
-                x2:x+length*a.cos().abs()
-                }
-        }
-        else{
-            Line{
-                line_type:LineType::FY,
-                point:WeightedPoint{x:y,y:x,weight:1.0},
-                k:-a.cos()/a.sin(),
-                x1:y-length*a.sin().abs(),
-                x2:y+length*a.sin().abs()
-                }
+        let a = (angle as f32) * pi / 128.0;
+
+        if (angle >= 224) || (angle < 32) || (angle >= 96 && angle < 160) {
+            Line {
+                line_type: LineType::FX,
+                point: WeightedPoint {
+                    x: x,
+                    y: y,
+                    weight: 1.0,
+                },
+                k: -a.sin() / a.cos(),
+                x1: x - length * a.cos().abs(),
+                x2: x + length * a.cos().abs(),
+            }
+        } else {
+            Line {
+                line_type: LineType::FY,
+                point: WeightedPoint {
+                    x: y,
+                    y: x,
+                    weight: 1.0,
+                },
+                k: -a.cos() / a.sin(),
+                x1: y - length * a.sin().abs(),
+                x2: y + length * a.sin().abs(),
+            }
         }
     }
 
-    pub fn reset(&mut self){
+    pub fn reset(&mut self) {
         self.line_type = LineType::Empty;
-        self.point = WeightedPoint{x:0.0, y:0.0, weight:0.0};
+        self.point = WeightedPoint {
+            x: 0.0,
+            y: 0.0,
+            weight: 0.0,
+        };
         self.k = 0.0;
         self.x1 = 0.0;
         self.x2 = 0.0;
     }
 
-    pub fn grid_coordinates_raw(&self, xmax:usize, ymax:usize)-> impl Iterator<Item = (usize, usize)> {
+    pub fn grid_coordinates_raw(
+        &self,
+        xmax: usize,
+        ymax: usize,
+    ) -> impl Iterator<Item = (usize, usize)> {
         let x1 = (self.x1.max(0.0) as usize).min(xmax);
         let x2 = (self.x2.max(0.0) as usize).min(xmax);
         let line = *self;
-        (x1.min(x2)..x1.max(x2)).filter_map(
-            move |x| {                
-                let yy = (line.point.y + line.k*(x as f32 - line.point.x));
-                if yy<0.0 {
+        (x1.min(x2)..x1.max(x2)).filter_map(move |x| {
+            let yy = (line.point.y + line.k * (x as f32 - line.point.x));
+            if yy < 0.0 {
+                None
+            } else {
+                let y = yy as usize;
+                if y < ymax {
+                    Some((x, y))
+                } else {
                     None
                 }
-                else{
-                    let y = yy as usize;
-                    if y<ymax {Some((x,y))} else {None}
-                }
             }
-        )
+        })
     }
 
-    pub fn grid_coordinates(&self,xmax:usize,ymax:usize)-> impl Iterator<Item = (usize, usize)> {
+    pub fn grid_coordinates(
+        &self,
+        xmax: usize,
+        ymax: usize,
+    ) -> impl Iterator<Item = (usize, usize)> {
         let (xmax, ymax) = match self.line_type {
             LineType::FX => (xmax, ymax),
             LineType::FY => (ymax, xmax),
-            _ => (0,0)
+            _ => (0, 0),
         };
         let switch = self.line_type == LineType::FY;
-        self.grid_coordinates_raw(xmax, ymax).map(move |xy| if switch {(xy.1,xy.0)} else {xy})
+        self.grid_coordinates_raw(xmax, ymax)
+            .map(move |xy| if switch { (xy.1, xy.0) } else { xy })
     }
-/*
-    pub fn grid_coordinates_old(&self,xmax:usize,ymax:usize)-> impl Iterator<Item = (usize, usize)> {
-        let x1 = self.x1.max(0.0) as usize;
-        let x2 = self.x2.max(0.0) as usize;
-        let line = *self;
-        (x1..x2).filter_map(
-            move |x| {
-                
-                let yy = (line.point.y + line.k*(x as f32 - line.point.x));
-                if yy<0.0 {
-                    None
-                }
-                else{
-                    let y = yy as usize;
-                    match line.line_type {
-                        LineType::FX => { if x<xmax && y<ymax {Some((x,y))} else {None} },
-                        LineType::FY => { if y<xmax && x<ymax {Some((y,x))} else {None} },
-                        _ => None
+    /*
+        pub fn grid_coordinates_old(&self,xmax:usize,ymax:usize)-> impl Iterator<Item = (usize, usize)> {
+            let x1 = self.x1.max(0.0) as usize;
+            let x2 = self.x2.max(0.0) as usize;
+            let line = *self;
+            (x1..x2).filter_map(
+                move |x| {
+
+                    let yy = (line.point.y + line.k*(x as f32 - line.point.x));
+                    if yy<0.0 {
+                        None
+                    }
+                    else{
+                        let y = yy as usize;
+                        match line.line_type {
+                            LineType::FX => { if x<xmax && y<ymax {Some((x,y))} else {None} },
+                            LineType::FY => { if y<xmax && x<ymax {Some((y,x))} else {None} },
+                            _ => None
+                        }
                     }
                 }
-            }
-        )
-    }
-*/
-    pub fn sample_coordinates(&self, steps:usize) -> impl Iterator<Item = (f32, f32)> {
+            )
+        }
+    */
+    pub fn sample_coordinates(&self, steps: usize) -> impl Iterator<Item = (f32, f32)> {
         let x1 = self.x1;
         let x2 = self.x2;
-        let dx = (x2-x1)/(steps as f32);
+        let dx = (x2 - x1) / (steps as f32);
         let y1 = self.y1();
         let y2 = self.y2();
-        let dy = (y2-y1)/(steps as f32);
-        
+        let dy = (y2 - y1) / (steps as f32);
+
         let line = *self;
-        (0..steps).filter_map(
-            move |i| {
-                let x = x1 + (i as f32)*dx;
-                let y = y1 + (i as f32)*dy;
-                match line.line_type {
-                    LineType::FX => Some((x,y)),
-                    LineType::FY => Some((y,x)),
-                    _ => None
-                }
+        (0..steps).filter_map(move |i| {
+            let x = x1 + (i as f32) * dx;
+            let y = y1 + (i as f32) * dy;
+            match line.line_type {
+                LineType::FX => Some((x, y)),
+                LineType::FY => Some((y, x)),
+                _ => None,
             }
-        )
+        })
     }
 
-    pub fn points_around_raw(&self, xmax:usize, ymax: usize, delta:usize) -> impl Iterator<Item = (usize, usize)> {
+    pub fn points_around_raw(
+        &self,
+        xmax: usize,
+        ymax: usize,
+        delta: usize,
+    ) -> impl Iterator<Item = (usize, usize)> {
         let line = *self;
         let idelta = delta as isize;
-        self.grid_coordinates_raw(xmax, ymax).flat_map(
-            move |(x,y)| {
+        self.grid_coordinates_raw(xmax, ymax)
+            .flat_map(move |(x, y)| {
                 let iy = y as isize;
-                let start = (iy-idelta).max(0) as usize;
-                let end = (y+delta).min(ymax);
-                (start..end).map(move |y| (x,y))
-            }
-        )
+                let start = (iy - idelta).max(0) as usize;
+                let end = (y + delta).min(ymax);
+                (start..end).map(move |y| (x, y))
+            })
     }
 
-    pub fn points_around(&self, xmax:usize, ymax: usize, delta:usize) -> impl Iterator<Item = (usize, usize)> {
+    pub fn points_around(
+        &self,
+        xmax: usize,
+        ymax: usize,
+        delta: usize,
+    ) -> impl Iterator<Item = (usize, usize)> {
         let (xmax, ymax) = match self.line_type {
             LineType::FX => (xmax, ymax),
             LineType::FY => (ymax, xmax),
-            _ => (0,0)
+            _ => (0, 0),
         };
         let switch = self.line_type == LineType::FY;
-        self.points_around_raw(xmax, ymax, delta).map(move |xy| if switch {(xy.1,xy.0)} else {xy})
+        self.points_around_raw(xmax, ymax, delta)
+            .map(move |xy| if switch { (xy.1, xy.0) } else { xy })
     }
 
-    pub fn orthogonal_line_through(&self, x:f32, y:f32, length:f32) -> Line{
-        let dk = length/(1.0 + self.k*self.k).sqrt();
+    pub fn orthogonal_line_through(&self, x: f32, y: f32, length: f32) -> Line {
+        let dk = length / (1.0 + self.k * self.k).sqrt();
 
         match self.line_type {
-            LineType::FX =>  Line{
+            LineType::FX => Line {
                 line_type: LineType::FY,
                 point: WeightedPoint {
                     x: y,
                     y: x,
-                    weight: 1.0
+                    weight: 1.0,
                 },
                 k: -self.k,
-                x1: y-dk.abs(),
-                x2: y+dk.abs(),
+                x1: y - dk.abs(),
+                x2: y + dk.abs(),
             },
-            LineType::FY => Line{
+            LineType::FY => Line {
                 line_type: LineType::FX,
                 point: WeightedPoint {
                     x: x,
                     y: y,
-                    weight: 1.0
+                    weight: 1.0,
                 },
                 k: -self.k,
-                x1: x-dk.abs(),
-                x2: x+dk.abs(),
+                x1: x - dk.abs(),
+                x2: x + dk.abs(),
             },
-            _ => Line::new()
+            _ => Line::new(),
         }
     }
 
-    pub fn line1(&self) -> Line{
-        Line{
+    pub fn line1(&self) -> Line {
+        Line {
             line_type: self.line_type,
             point: self.point,
             k: self.k,
@@ -312,8 +341,8 @@ impl Line {
         }
     }
 
-    pub fn line2(&self) -> Line{
-        Line{
+    pub fn line2(&self) -> Line {
+        Line {
             line_type: self.line_type,
             point: self.point,
             k: self.k,
@@ -322,37 +351,43 @@ impl Line {
         }
     }
 
-    pub fn sample_orthogonal_lines(&self, steps:usize, length:f32) -> impl Iterator<Item = Line> {        
+    pub fn sample_orthogonal_lines(&self, steps: usize, length: f32) -> impl Iterator<Item = Line> {
         let line = *self;
-        self.sample_coordinates(steps).map(
-            move |(x,y)| {
-                line.orthogonal_line_through(x, y, length)
-            }
-        )
+        self.sample_coordinates(steps)
+            .map(move |(x, y)| line.orthogonal_line_through(x, y, length))
     }
 
-    pub fn side(&self, side:u8) -> Line{
+    pub fn side(&self, side: u8) -> Line {
         match side {
             1 => self.line1(),
             2 => self.line2(),
-            _ => *self
+            _ => *self,
         }
     }
 
-    pub fn center_midpoint(&self) -> Line{
-        let x = (self.x1+self.x2)/2.0;
-        let y = self.point.y + self.k*(x-self.point.x);
-        Line{
+    pub fn center_midpoint(&self) -> Line {
+        let x = (self.x1 + self.x2) / 2.0;
+        let y = self.point.y + self.k * (x - self.point.x);
+        Line {
             line_type: self.line_type,
-            point: WeightedPoint{x:x, y:y, weight:self.point.weight},
+            point: WeightedPoint {
+                x: x,
+                y: y,
+                weight: self.point.weight,
+            },
             k: self.k,
             x1: self.x1,
-            x2: self.x2
+            x2: self.x2,
         }
     }
 
-    pub fn sample_parallel_lines(&self, steps:usize, distance:f32, side:u8) -> impl Iterator<Item = Line> {
-        let (x1,y1,x2,y2,x,y) = self.points().unwrap_or((0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+    pub fn sample_parallel_lines(
+        &self,
+        steps: usize,
+        distance: f32,
+        side: u8,
+    ) -> impl Iterator<Item = Line> {
+        let (x1, y1, x2, y2, x, y) = self.points().unwrap_or((0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
         let ol = self.orthogonal_line_through(x, y, distance).side(side);
         let ol1 = self.orthogonal_line_through(x1, y1, distance).side(side);
         let ol2 = self.orthogonal_line_through(x2, y2, distance).side(side);
@@ -360,8 +395,12 @@ impl Line {
         let t = self.line_type;
         let switch = self.line_type == LineType::FY;
         let weight = self.point.weight;
-        ol.sample_coordinates(steps).zip(ol1.sample_coordinates(steps).zip(ol2.sample_coordinates(steps))).map(
-            move |((x,y),((x1,y1),(x2,y2)))| {
+        ol.sample_coordinates(steps)
+            .zip(
+                ol1.sample_coordinates(steps)
+                    .zip(ol2.sample_coordinates(steps)),
+            )
+            .map(move |((x, y), ((x1, y1), (x2, y2)))| {
                 if switch {
                     Line {
                         line_type: t,
@@ -374,8 +413,7 @@ impl Line {
                         x1: y1,
                         x2: y2,
                     }
-                }
-                else{
+                } else {
                     Line {
                         line_type: t,
                         point: WeightedPoint {
@@ -388,14 +426,13 @@ impl Line {
                         x2: x2,
                     }
                 }
-            }
-        )
+            })
     }
 
-    pub fn parallel_line(&self, offset:f32) -> Line{
-        let (nx,ny) = self.raw_normal();
-        let ox = offset*nx;
-        let oy = offset*ny;
+    pub fn parallel_line(&self, offset: f32) -> Line {
+        let (nx, ny) = self.raw_normal();
+        let ox = offset * nx;
+        let oy = offset * ny;
         Line {
             line_type: self.line_type,
             point: WeightedPoint {
@@ -409,7 +446,7 @@ impl Line {
         }
     }
 
-    pub fn expand(&self, factor:f32) -> Line{
+    pub fn expand(&self, factor: f32) -> Line {
         let x = self.point.x;
         let x1 = self.x1;
         let x2 = self.x2;
@@ -417,23 +454,23 @@ impl Line {
             line_type: self.line_type,
             point: self.point,
             k: self.k,
-            x1: x + (x1-x)*factor,
-            x2: x + (x2-x)*factor,
+            x1: x + (x1 - x) * factor,
+            x2: x + (x2 - x) * factor,
         }
     }
 
-    pub fn with_length(&self, new_length:f32) -> Line{
-       let (dx, dy) = self.raw_direction();
-       Line{
-           line_type: self.line_type,
-           point: self.point,
-           k: self.k,
-           x1: self.point.x - dx*new_length/2.0,
-           x2: self.point.x + dx*new_length/2.0,
-       }
+    pub fn with_length(&self, new_length: f32) -> Line {
+        let (dx, dy) = self.raw_direction();
+        Line {
+            line_type: self.line_type,
+            point: self.point,
+            k: self.k,
+            x1: self.point.x - dx * new_length / 2.0,
+            x2: self.point.x + dx * new_length / 2.0,
+        }
     }
 
-    pub fn clamp_ends(&self, xmax:f32, ymax:f32) -> Line{
+    pub fn clamp_ends(&self, xmax: f32, ymax: f32) -> Line {
         match self.line_type {
             LineType::FX => Line {
                 line_type: self.line_type,
@@ -449,11 +486,11 @@ impl Line {
                 x1: self.x1.max(0.0).min(ymax),
                 x2: self.x2.max(0.0).min(ymax),
             },
-            _ => *self
+            _ => *self,
         }
     }
 
-    pub fn exapand_to_edge(&self, xmax:f32, ymax:f32) -> Line{
+    pub fn exapand_to_edge(&self, xmax: f32, ymax: f32) -> Line {
         match self.line_type {
             LineType::FX => Line {
                 line_type: self.line_type,
@@ -469,22 +506,44 @@ impl Line {
                 x1: 0.0,
                 x2: ymax,
             },
-            _ => *self
+            _ => *self,
         }
     }
-    pub fn intersection(&self, line:Line) -> Option<(f32,f32)>{
-        if let (Some((ax,ay)),Some((bx,by))) = (self.midpoint(),line.midpoint()){
-            let (ux,uy) = self.direction();
-            let (vx,vy) = line.direction();
-            let dx = bx-ax;
-            let dy = by-ay;
-            solve2x2(
-                ux, uy,
-                -vx, -vy,
-                dx, dy
-            ).map(|(s,t)| (ax + s*ux, ay + s*uy))
-        }
-        else{
+    pub fn intersection(&self, line: Line) -> Option<(f32, f32)> {
+        if let (Some((ax, ay)), Some((bx, by))) = (self.midpoint(), line.midpoint()) {
+            let (ux, uy) = self.direction();
+            let (nux, nuy) = (-uy, ux);
+            let (vx, vy) = line.direction();
+            let (nvx, nvy) = (-vy, vx);
+
+            let dx = bx - ax;
+            let dy = by - ay;
+            let unv = ux * nvx + uy * nvy;
+            let vnu = vx * nux + vy * nuy;
+            let dnv = dx * nvx + dy * nvy;
+            let dnu = dx * nux + dy * nuy;
+
+            if vnu.abs() < 1.0e-5 && unv.abs() < 1.0e-5 {
+                None
+            } else {
+                if vnu.abs() > unv.abs() {
+                    let s = -dnu / vnu;
+                    Some((bx + s * vx, by + s * vy))
+                } else {
+                    let t = dnv / unv;
+                    Some((ax + t * ux, ay + t * uy))
+                }
+                
+            }
+        /*
+                    solve2x2(
+                        ux, uy,
+                        vx, vy,
+                        dx, dy
+        //            ).map(|(s,t)| (ax + s*ux, ay + s*uy))
+                    ).map(|(s,t)| (bx - t*vx, by - t*vy))
+                    */
+        } else {
             None
         }
     }
@@ -556,32 +615,48 @@ impl Line {
         }
     }
 
-    pub fn points_i32(&self) -> Option<(i32, i32, i32, i32, i32, i32)>{
+    pub fn points_i32(&self) -> Option<(i32, i32, i32, i32, i32, i32)> {
         match self.line_type {
             LineType::Empty => None,
             LineType::FX => Some((
-                self.x1 as i32, self.y1() as i32,
-                self.x2 as i32, self.y2() as i32,
-                self.point.x as i32, self.point.y as i32)),
+                self.x1 as i32,
+                self.y1() as i32,
+                self.x2 as i32,
+                self.y2() as i32,
+                self.point.x as i32,
+                self.point.y as i32,
+            )),
             LineType::FY => Some((
-                self.y1() as i32, self.x1 as i32, 
-                self.y2() as i32, self.x2 as i32, 
-                self.point.y as i32, self.point.x as i32))
-        }        
+                self.y1() as i32,
+                self.x1 as i32,
+                self.y2() as i32,
+                self.x2 as i32,
+                self.point.y as i32,
+                self.point.x as i32,
+            )),
+        }
     }
 
-    pub fn points(&self) -> Option<(f32, f32, f32, f32, f32, f32)>{
+    pub fn points(&self) -> Option<(f32, f32, f32, f32, f32, f32)> {
         match self.line_type {
             LineType::Empty => None,
             LineType::FX => Some((
-                self.x1, self.y1(),
-                self.x2, self.y2(),
-                self.point.x, self.point.y)),
+                self.x1,
+                self.y1(),
+                self.x2,
+                self.y2(),
+                self.point.x,
+                self.point.y,
+            )),
             LineType::FY => Some((
-                self.y1(), self.x1, 
-                self.y2(), self.x2, 
-                self.point.y, self.point.x))
-        }        
+                self.y1(),
+                self.x1,
+                self.y2(),
+                self.x2,
+                self.point.y,
+                self.point.x,
+            )),
+        }
     }
 
     pub fn raw_direction(&self) -> (f32, f32) {
@@ -628,17 +703,16 @@ impl Line {
         }
     }
 
-    pub fn max_endpoint_distance(&self, line:Line)->Option<f32>{
-        if let Some((x1,y1,x2,y2,_,_))=line.points(){
-            Some(self.distance(x1,y1).max(self.distance(x2,y2)))
-        }
-        else{
+    pub fn max_endpoint_distance(&self, line: Line) -> Option<f32> {
+        if let Some((x1, y1, x2, y2, _, _)) = line.points() {
+            Some(self.distance(x1, y1).max(self.distance(x2, y2)))
+        } else {
             None
         }
     }
 
-    pub fn f(&self, x:f32)->f32{
-        self.point.y + self.k*(x-self.point.x)
+    pub fn f(&self, x: f32) -> f32 {
+        self.point.y + self.k * (x - self.point.x)
     }
 
     pub fn as_fx(&self) -> Line {
@@ -683,49 +757,45 @@ impl Line {
         }
     }
 
-    pub fn length(&self) ->f32{
+    pub fn length(&self) -> f32 {
         let dx = self.x2 - self.x1;
         let dy = self.y2() - self.y1();
-        (dx*dx+dy*dy).sqrt()
+        (dx * dx + dy * dy).sqrt()
     }
 
-    pub fn similarity(&self, line:Line,minlength:f32) -> f32{
-        fn clamp(x:f32)->f32{
-            if x<0.0{
+    pub fn similarity(&self, line: Line, minlength: f32) -> f32 {
+        fn clamp(x: f32) -> f32 {
+            if x < 0.0 {
                 0.0
-            }
-            else{
+            } else {
                 x
             }
         }
-        if self.line_type == LineType::Empty{
+        if self.line_type == LineType::Empty {
             0.0
-        }
-        else{
-            if let Some(d) = self.max_endpoint_distance(line){
-                let w = (self.point.weight*line.point.weight).sqrt();
-                let l1 = clamp(self.length()-minlength);
-                let l2 = clamp(line.length()-minlength);
-                let l = (l1*l2).sqrt();
-                let dw = (-d*d/20.0).exp();
-                let dwc = if d<=4.0 {dw} else {0.0};
-                let oc = clamp(0.1-(1.0-self.overlap(line))*(1.0+d)*(1.0+d));
-                w*l*oc*dwc
-            }
-            else{
+        } else {
+            if let Some(d) = self.max_endpoint_distance(line) {
+                let w = (self.point.weight * line.point.weight).sqrt();
+                let l1 = clamp(self.length() - minlength);
+                let l2 = clamp(line.length() - minlength);
+                let l = (l1 * l2).sqrt();
+                let dw = (-d * d / 20.0).exp();
+                let dwc = if d <= 4.0 { dw } else { 0.0 };
+                let oc = clamp(0.1 - (1.0 - self.overlap(line)) * (1.0 + d) * (1.0 + d));
+                w * l * oc * dwc
+            } else {
                 0.0
             }
         }
     }
 
-    pub fn reduce(&self, line:Line,minlength:f32) -> Line{
-        if self.similarity(line,minlength)>0.0{
+    pub fn reduce(&self, line: Line, minlength: f32) -> Line {
+        if self.similarity(line, minlength) > 0.0 {
             let mut fit = LinearFit::new();
             fit.add_line(*self, self.point.weight);
             fit.add_line(line, line.point.weight);
             fit.line()
-        }
-        else{
+        } else {
             Line::new()
         }
     }
@@ -927,11 +997,10 @@ mod tests {
         fit.add(2.0, 1.0, 1.0);
         let line2 = fit.line();
 
-        if let Some((x,y)) = line1.intersection(line2){
+        if let Some((x, y)) = line1.intersection(line2) {
             assert_eq!(x, 2.0);
             assert_eq!(y, 2.0);
-        }
-        else {
+        } else {
             assert!(false);
         }
     }
