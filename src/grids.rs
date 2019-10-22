@@ -449,18 +449,35 @@ impl Grids {
         })
     }
 
-    pub fn avg_distance(&mut self) -> f32 {
+    pub fn intersections_imm(&self) -> impl Iterator<Item = WeightedPoint> {
+        let xmax = self.characteristics_grid.cols;
+        let ymax = self.characteristics_grid.rows;
+        let axis = self.line_grid().data[0];
+        let orthogonal_axis =
+            axis.orthogonal_line_through(xmax as f32 / 2.0, ymax as f32 / 2.0, 100.0);
+        self.line_grid().lines().filter_map(move |line| {
+            orthogonal_axis
+                .intersection(line)
+                .map(move |(x, y)| WeightedPoint {
+                    x: x,
+                    y: y,
+                    weight: line.point.weight,
+                })
+        })
+    }
+
+    pub fn avg_distance(&self) -> f32 {
         let mut x0 = 0.0;
         let mut y0 = 0.0;
 
         let mut stat = Statistics::new();
 
-        for (i, p) in self.intersections().skip(1).enumerate() {
+        for (i, p) in self.intersections_imm().skip(1).enumerate() {
             if i > 0 {
                 let dx = p.x - x0;
                 let dy = p.y - y0;
                 let d = (dx * dx + dy * dy).sqrt();
-                if d > self.grid_line_scan_step {
+                if d > self.grid_line_scan_step*0.8 {
                     stat.add(d, p.weight);
                 }
             }
@@ -472,7 +489,7 @@ impl Grids {
         let d_mean = stat.mean();
         stat.reset();
 
-        for (i, p) in self.intersections().skip(1).enumerate() {
+        for (i, p) in self.intersections_imm().skip(1).enumerate() {
             if i > 0 {
                 let dx = p.x - x0;
                 let dy = p.y - y0;
@@ -487,6 +504,68 @@ impl Grids {
         stat.mean()
     }
 
+    pub fn parallels(&mut self) -> Option<Parallels>{
+        let d = self.avg_distance();
+        let (qix,qiy) = self.fit_index();
+        let xmax = self.characteristics_grid.cols;
+        let ymax = self.characteristics_grid.rows;
+        let axis = self.line_grid().data[0];
+        let orthogonal_axis =
+            axis.orthogonal_line_through(xmax as f32 / 2.0, ymax as f32 / 2.0, 100.0);
+        
+        let mut qx = QuadraticFit::new();
+        let mut qy = QuadraticFit::new();
+        let mut qk = QuadraticFit::new();
+
+        for (i,p) in self.intersections().enumerate() {
+            let line = self.line_grid().data[i];
+            let ix = match line.line_type{
+                LineType::FX => qiy.map(|q| q.f(p.y)).unwrap_or(-10.0),
+                LineType::FY => qix.map(|q| q.f(p.x)).unwrap_or(-10.0),
+                _ => -10.0
+            }.round();
+            if ix>=0.0{
+                qx.add(ix, p.x, p.weight);
+                qy.add(ix, p.y, p.weight);
+                qk.add(ix, line.k, p.weight);
+            }
+        }
+        if let (Some(fx),Some(fy),Some(fk)) = (qx.quadratic_function(),qy.quadratic_function(),qk.quadratic_function()){
+            Some(
+                Parallels{
+                    parallel_axis:axis,
+                    orthogonal_axis:orthogonal_axis,
+                    x:fx,
+                    y:fy,
+                    k:fk
+                }
+            )
+        }
+        else{
+            None
+        }
+    }
+/*
+    pub fn fill_lines(&mut self){
+        let mut lines =
+        let d = self.avg_distance();
+        let mut x0 = 0.0;
+        let mut y0 = 0.0;
+
+        for (i, p) in self.intersections_imm().enumerate() {
+            if i > 1 {
+                let dx = p.x - x0;
+                let dy = p.y - y0;
+                let d = (dx * dx + dy * dy).sqrt();
+            }
+            x0 = p.x;
+            y0 = p.y;
+            target.push(source.data[i]);
+        }
+
+
+    }
+*/
     pub fn fit_index(
         &mut self,
     ) -> (
