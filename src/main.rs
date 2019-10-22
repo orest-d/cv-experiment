@@ -294,6 +294,34 @@ fn run() -> opencv::Result<()> {
                 }
             }
         }
+        grids.line_grid_mut().reset();
+        grids.scan_lines(320, 240, true);
+        let color_mid = core::Scalar::new(255.0, 100.0, 0.0, 0.0);
+        if let Some(parallels) = grids.parallels(){
+            for i in 0..20{
+                let line = parallels.line(i as f32, 200.0);//.to_edges(640.0, 480.0);
+                if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
+                    imgproc::line(
+                        &mut colored,
+                        core::Point::new(x1, y1),
+                        core::Point::new(x2, y2),
+                        color_mid,
+                        1,
+                        8,
+                        0,
+                    );
+                    imgproc::rectangle(
+                        &mut colored,
+                        core::Rect::new(x - 3, y - 3, 7, 7),
+                        color_mid,
+                        2,
+                        1,
+                        0,
+                    );
+                }
+            }
+        }
+
         let mut f = File::create("test.txt").unwrap();
         let (fx, fy) = grids.fit_index();
         f.write(b"x,y,weight,ix,iy\n");
