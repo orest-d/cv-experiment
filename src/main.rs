@@ -5,23 +5,25 @@ use opencv::highgui;
 use opencv::imgproc;
 use opencv::videoio;
 
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
 
 pub mod angle_histogram;
 pub mod characteristics_grid;
 pub mod fixed_histogram;
+pub mod grids;
 pub mod line;
+pub mod quadratic;
 pub mod line_grid;
 pub mod utils;
-pub mod grids;
 
 use angle_histogram::*;
 use characteristics_grid::*;
 use fixed_histogram::*;
-use line::*;
-use line_grid::*;
 use grids::*;
+use line::*;
+use quadratic::*;
+use line_grid::*;
 
 fn convolution(
     cols: usize,
@@ -108,8 +110,8 @@ fn convolution(
             if sum > maxintensity {
                 maxintensity = sum;
             }
-            if sum<20{
-                sum=0;
+            if sum < 20 {
+                sum = 0;
             }
 
             let a = (128f64 + 128f64 * (s as f64).atan2(c as f64) / pi) as u8;
@@ -132,9 +134,10 @@ fn convolution(
             //sum/=655360;
             //sum/=32768;
             //sum+=(a as i32)/8;
+            sum *= 2;
             sum = if sum > 255 { 255 } else { sum };
             destination[i * cols + j] = sum as u8;
-            if sum>20 && (a == 0 || a==255) {
+            if sum > 20 && (a == 0 || a == 255) {
                 destination[i * cols + j] = 255;
             }
             //destination[i*cols+j]=a;
@@ -209,173 +212,31 @@ fn run() -> opencv::Result<()> {
             &mut grids.characteristics_grid,
         );
         let a = grids.calculate_main_angle();
-        println!("MAIN ANGLE:      {} <-----",a);
+        println!("MAIN ANGLE:      {} <-----", a);
 
         let mut colored = core::Mat::default()?;
         imgproc::cvt_color(&gray, &mut colored, imgproc::COLOR_GRAY2BGR, 0)?;
-        //        let color = core::Scalar::new(0.0,0.0,255.0,0.0);
-        //        imgproc::line(&mut colored,core::Point::new(100,200),core::Point::new(200,300),color,3,8,0);
-        //        imgproc::rectangle(&mut colored,core::Rect::new(100,200,30,30),color,3,0,0);
 
-
-/*
-        let line = Line::new_from_angle(a, 320.0, 240.0, 100.0);
-        let color = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
-        println!("{:?}",line);
-        if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-            imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,3,8,0);
-        }
-
-        let color = core::Scalar::new(0.0, 0.0, 128.0, 0.0);
-        for (x,y) in line.points_around(640, 480, 10){
-            let x = x as i32;
-            let y = y as i32;
-            imgproc::line(&mut colored,core::Point::new(x,y),core::Point::new(x,y),color,3,8,0);
-
-        }
-        let color = core::Scalar::new(50.0, 50.0, 255.0, 0.0);
-        for (i,(x,y)) in line.grid_coordinates(640,480).enumerate().filter(|(i, _)| i%10==0){
-            let x = x as i32;
-            let y = y as i32;
-            imgproc::rectangle(
-                &mut colored,
-                core::Rect::new(x - 4, y - 4, 9, 9),
-                color,
-                1,
-                1,
-                0,
-            );
-        }
-        let color = core::Scalar::new(255.0, 255.0, 255.0, 0.0);
-        println!("  LINE {:?}",line);
-        for ol in line.sample_orthogonal_lines(10, 100.0){
-            if let Some((x1, y1, x2, y2, x, y)) = ol.points_i32() {
-                println!("  OL {:?} {} {}",ol,x,y);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 4, y - 4, 9, 9),
-                    color,
-                    1,
-                    1,
-                    0,
-                );
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
-            }
-        }
-        for pl in line.sample_parallel_lines(10, 100.0){
-            if let Some((x1, y1, x2, y2, x, y)) = pl.points_i32() {
-                println!("  PL {:?} {} {}",pl,x,y);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 4, y - 4, 9, 9),
-                    color,
-                    1,
-                    1,
-                    0,
-                );
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
-            }
-        }
-
-        let line = Line::new_from_angle(a+64, 320.0, 240.0, 100.0);
-        let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
-        println!("{:?}",line);
-        if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-            imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,3,8,0);
-        }
-        let color = core::Scalar::new(0.0, 128.0, 0.0, 0.0);
-        for (x,y) in line.points_around(640, 480, 10){
-            let x = x as i32;
-            let y = y as i32;
-            imgproc::line(&mut colored,core::Point::new(x,y),core::Point::new(x,y),color,3,8,0);
-
-        }
-*/
-/*
-        let color = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
-        let line = Line::new_from_angle(a, 320.0, 200.0, 100.0);
-        for sl in line.sample_parallel_lines(50, 50.0){
-            for (i,(x,y)) in sl.grid_coordinates(340,260).enumerate(){
-                if (i%4!=0){continue;}
-                imgproc::line(&mut colored,core::Point::new(x as i32,y as i32),core::Point::new(x as i32,y as i32),color,1,8,0);
-            }
-            /*
-            if let Some((x1, y1, x2, y2, x, y)) = sl.points_i32() {
-                println!("  SL {:?} {} {}",sl,x,y);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 4, y - 4, 9, 9),
-                    color,
-                    1,
-                    1,
-                    0,
-                );
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
-            }
-            */
-        }
-        */
-        /*
-        let color = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
-        let line = grids.find_line(320, 200, a, 8, 4.0, 50.0, true);
-        if line.point.weight>200.0{
-            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-                println!("  FIND LINE {:?} {} {}",line,x,y);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 4, y - 4, 9, 9),
-                    color,
-                    1,
-                    1,
-                    0,
-                );
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
-            }
-        }
-        let color = core::Scalar::new(255.0, 100.0, 0.0, 0.0);
-        let line = grids.find_line_iterative(320, 200, a, 8, 4.0, 50.0, true,2,4,3.0);
-        if true{
-            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-                println!("  FIND LINE {:?} {} {}",line,x,y);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 4, y - 4, 9, 9),
-                    color,
-                    1,
-                    1,
-                    0,
-                );
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
-            }
-        }
-        let color = core::Scalar::new(0.0, 100.0, 255.0, 0.0);
-        let line = grids.find_line_iterative(320, 200, a+64, 8, 4.0, 50.0, true,2,4,3.0);
-        if true{
-            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-                println!("  FIND LINE {:?} {} {}",line,x,y);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 4, y - 4, 9, 9),
-                    color,
-                    1,
-                    1,
-                    0,
-                );
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
-            }
-        }
-        */
         grids.line_grid_mut().reset();
-        grids.scan_lines_grid(false);
-//        grids.reduce_all();
-//        grids.reduce_all();
-//        grids.scan_lines_grid(true);
+        grids.scan_lines(320, 240, false);
+        //        grids.scan_lines_grid(false);
+        //        grids.reduce_all();
+        //        grids.reduce_all();
+        //        grids.scan_lines_grid(true);
 
         let color_mid = core::Scalar::new(0.0, 128.0, 0.0, 0.0);
         let color_line = core::Scalar::new(100.0, 255.0, 100.0, 0.0);
         for line in grids.line_grid().data.iter() {
-            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
+            if let Some((x1, y1, x2, y2, x, y)) = line.to_edges(600.0, 400.0).points_i32() {
+                imgproc::line(
+                    &mut colored,
+                    core::Point::new(x1, y1),
+                    core::Point::new(x2, y2),
+                    color_line,
+                    1,
+                    8,
+                    0,
+                );
                 imgproc::rectangle(
                     &mut colored,
                     core::Rect::new(x - 2, y - 2, 5, 5),
@@ -387,11 +248,10 @@ fn run() -> opencv::Result<()> {
             }
         }
         let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
-        for (x,y) in grids.intersections(){
-            println!("{:?}",(x,y));
+        for p in grids.intersections() {
             imgproc::rectangle(
                 &mut colored,
-                core::Rect::new(x as i32 - 2, y as i32 - 2, 5, 5),
+                core::Rect::new(p.x as i32 - 2, p.y as i32 - 2, 5, 5),
                 color_mid,
                 1,
                 1,
@@ -399,130 +259,14 @@ fn run() -> opencv::Result<()> {
             );
         }
         let mut f = File::create("test.txt").unwrap();
-        
-        f.write(b"x,y\n");
-        for (x,y) in grids.intersections(){
-            write!(f,"{},{}\n",x,y);
-        }
-         
-        let color_mid = core::Scalar::new(255.0, 0.0, 0.0, 0.0);
-        for (x,y) in grids.average_intersections(){
-            println!("{:?}",(x,y));
-            if x>0.0 && y>0.0{
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x as i32 - 2, y as i32 - 2, 5, 5),
-                    color_mid,
-                    1,
-                    1,
-                    0,
-                );
-            }
-        }
-/*
-       let color_mid = core::Scalar::new(128.0, 128.0, 0.0, 0.0);
-        let color_line = core::Scalar::new(255.0, 255.0, 100.0, 0.0);
-          println!("PARALLELS");
-//        println!("{:?}",parallels);
-        for i in 0..10{
-            let (x,y) = parallels.point(i as f32);
-//            println!("{}   {:?}",i,(x, y));
-            if x>0.0 && y>0.0{
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x as i32 - 2, y as i32 - 2, 5, 5),
-                    color_mid,
-                    1,
-                    1,
-                    0,
-                );
-            }
-        }
-        */
-        /*
-        for i in 0..10{
-            let line = parallels.line(i as f32, 50.0);
-            if let Some((x1, y1, x2, y2, x, y)) = line.clamp_ends(640.0, 480.0).points_i32() {
-                println!("{}   {:?}",i,(x1, y1, x2, y2, x, y));
-                if x1>=-200 && y1>=-200 && x2>=-200 && y2>=-200 && x>=-200 && y>=-200{
-
-                    imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
-                    imgproc::rectangle(
-                        &mut colored,
-                        core::Rect::new(x - 2, y - 2, 5, 5),
-                        color_mid,
-                        1,
-                        1,
-                        0,
-                    );
-                }
-            }
-
-        }
-*/
-/*
-        let color = core::Scalar::new(255.0, 255.0, 0.0, 0.0);
-        let line = grids.find_line(320, 200, a+64, 8, 5.0, 50.0, true);
-        if line.point.weight>200.0{
-            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-                println!("  FIND LINE {:?} {} {}",line,x,y);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 4, y - 4, 9, 9),
-                    color,
-                    1,
-                    1,
-                    0,
-                );
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color,1,8,0);
-            }
-        }
-*/
-
-/*
-        grids.fit_horizontal();
-        grids.lines_from_neighbors();
-        grids.reduce_area(4);
-//        grids.reduce_all();
-
-        let color_mid = core::Scalar::new(0.0, 0.0, 255.0, 0.0);
-        let color_line = core::Scalar::new(128.0, 128.0, 255.0, 0.0);
-        for line in grids.line_grid().data.iter() {
-            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 2, y - 2, 5, 5),
-                    color_mid,
-                    1,
-                    1,
-                    0,
-                );
-            }
+        let (fx, fy) = grids.fit_index();
+        f.write(b"x,y,weight,ix,iy\n");
+        for p in grids.intersections() {
+            let ix = fx.map(|q| q.f(p.x)).unwrap_or(-1000.0);
+            let iy = fy.map(|q| q.f(p.y)).unwrap_or(-1000.0);
+            write!(f, "{},{},{},{},{}\n", p.x, p.y, p.weight, ix, iy);
         }
 
-        grids.fit_vertical();
-        grids.lines_from_neighbors();
-        grids.reduce_area(4);
-//        grids.reduce_all();
-        let color_mid = core::Scalar::new(0.0, 255.0, 0.0, 0.0);
-        let color_line = core::Scalar::new(128.0, 255.0, 128.0, 0.0);
-        for line in grids.line_grid().data.iter() {
-            if let Some((x1, y1, x2, y2, x, y)) = line.points_i32() {
-                imgproc::line(&mut colored,core::Point::new(x1,y1),core::Point::new(x2,y2),color_line,1,8,0);
-                imgproc::rectangle(
-                    &mut colored,
-                    core::Rect::new(x - 2, y - 2, 5, 5),
-                    color_mid,
-                    1,
-                    1,
-                    0,
-                );
-            }
-        }
-*/         
-        //        highgui::imshow(window, &gray)?;
-        //        println!("Frame size {:?}, {:?}", frame.size(), frame);
         if frame.size()?.width > 0 {
             highgui::imshow(window, &mut colored)?;
         }

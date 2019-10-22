@@ -151,12 +151,12 @@ impl<T> TwoLargest<T> where T:Copy+Clone{
 
 #[derive(Debug, Clone, Copy)]
 pub struct Statistics {
-    x_sum: f32,
-    xx_sum: f32,
-    w_sum: f32,
-    xmin: Option<f32>,
-    xmax: Option<f32>,
-    count: usize,
+    pub x_sum: f32,
+    pub xx_sum: f32,
+    pub w_sum: f32,
+    pub xmin: Option<f32>,
+    pub xmax: Option<f32>,
+    pub count: usize,
 }
 
 impl Statistics {

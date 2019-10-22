@@ -120,160 +120,6 @@ impl LinearFit {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct QuadraticFit {
-    x1_sum: f32,
-    x2_sum: f32,
-    x3_sum: f32,
-    x4_sum: f32,
-    y_sum: f32,
-    x1y_sum: f32,
-    x2y_sum: f32,
-    w_sum: f32,
-    xmin: Option<f32>,
-    xmax: Option<f32>,
-    ymin: Option<f32>,
-    ymax: Option<f32>,
-    count: usize,
-}
-
-impl QuadraticFit {
-    pub fn new() -> QuadraticFit {
-        QuadraticFit {
-            x1_sum: 0.0,
-            x2_sum: 0.0,
-            x3_sum: 0.0,
-            x4_sum: 0.0,
-            y_sum: 0.0,
-            x1y_sum: 0.0,
-            x2y_sum: 0.0,
-            w_sum: 0.0,
-            xmin: None,
-            xmax: None,
-            ymin: None,
-            ymax: None,
-            count: 0,
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.x1_sum = 0.0;
-        self.x2_sum = 0.0;
-        self.x3_sum = 0.0;
-        self.x4_sum = 0.0;
-        self.y_sum = 0.0;
-        self.x1y_sum = 0.0;
-        self.x2y_sum = 0.0;
-        self.w_sum = 0.0;
-        self.xmin = None;
-        self.xmax = None;
-        self.ymin = None;
-        self.ymax = None;
-        self.count = 0;
-    }
-
-    pub fn add(&mut self, x: f32, y: f32, w: f32) {
-        self.x1_sum += w * x;
-        self.x2_sum += self.x1_sum * x;
-        self.x3_sum += self.x2_sum * x;
-        self.x4_sum += self.x3_sum * x;
-        self.y_sum = w * y;
-        self.x1y_sum = self.y_sum * x;
-        self.x2y_sum = self.x1y_sum * x;
-        self.w_sum += w;
-        self.count += 1;
-        if w > 0.0 {
-            self.xmin = Some(self.xmin.map_or(x, |old| old.min(x)));
-            self.xmax = Some(self.xmax.map_or(x, |old| old.max(x)));
-            self.ymin = Some(self.ymin.map_or(y, |old| old.min(y)));
-            self.ymax = Some(self.ymax.map_or(y, |old| old.max(y)));
-        }
-    }
-
-    pub fn det(
-        a11: f32,
-        a12: f32,
-        a13: f32,
-        a21: f32,
-        a22: f32,
-        a23: f32,
-        a31: f32,
-        a32: f32,
-        a33: f32,
-    ) -> f32 {
-        a11 * a22 * a33 + a12 * a23 * a31 + a21 * a32 * a13
-            - a13 * a22 * a31
-            - a23 * a32 * a11
-            - a12 * a21 * a33
-    }
-
-    pub fn d(&self) -> f32 {
-        let a0 = self.w_sum;
-        let a1 = self.x1_sum;
-        let a2 = self.x2_sum;
-        let a3 = self.x3_sum;
-        let a4 = self.x4_sum;
-
-        Self::det(a4, a3, a2,
-                  a3, a2, a1,
-                  a2, a1, a0)
-    }
-
-    pub fn da(&self) -> f32 {
-        let a0 = self.w_sum;
-        let a1 = self.x1_sum;
-        let a2 = self.x2_sum;
-        let a3 = self.x3_sum;
-        let a4 = self.x4_sum;
-        let b0 = self.y_sum;
-        let b1 = self.x1y_sum;
-        let b2 = self.x2y_sum;
-
-        Self::det(b2, a3, a2,
-                  b1, a2, a1,
-                  b0, a1, a0)
-    }
-
-    pub fn db(&self) -> f32 {
-        let a0 = self.w_sum;
-        let a1 = self.x1_sum;
-        let a2 = self.x2_sum;
-        let a3 = self.x3_sum;
-        let a4 = self.x4_sum;
-        let b0 = self.y_sum;
-        let b1 = self.x1y_sum;
-        let b2 = self.x2y_sum;
-
-        Self::det(a4, b2, a2,
-                  a3, b1, a1,
-                  a2, b0, a0)
-    }
-
-    pub fn dc(&self) -> f32 {
-        let a0 = self.w_sum;
-        let a1 = self.x1_sum;
-        let a2 = self.x2_sum;
-        let a3 = self.x3_sum;
-        let a4 = self.x4_sum;
-        let b0 = self.y_sum;
-        let b1 = self.x1y_sum;
-        let b2 = self.x2y_sum;
-
-        Self::det(a4, a3, b2,
-                  a3, a2, b1,
-                  a2, a1, b0)
-    }
-
-    pub fn coefficients(&self) -> Option<(f32, f32, f32)> {
-        let d = self.d();
-        if d.abs()>1.0e-5{
-            Some((self.da()/d, self.db()/d, self.dc()/d))
-        }
-        else{
-            None
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Line {
@@ -627,19 +473,100 @@ impl Line {
 
     pub fn clamp_ends(&self, xmax: f32, ymax: f32) -> Line {
         match self.line_type {
-            LineType::FX => Line {
-                line_type: self.line_type,
-                point: self.point,
-                k: self.k,
-                x1: self.x1.max(0.0).min(xmax),
-                x2: self.x2.max(0.0).min(xmax),
+            LineType::FX => {
+                Line {
+                    line_type: self.line_type,
+                    point: self.point,
+                    k: self.k,
+                    x1: self.x1.max(0.0).min(xmax),
+                    x2: self.x2.max(0.0).min(xmax),
+                }
             },
-            LineType::FY => Line {
-                line_type: self.line_type,
-                point: self.point,
-                k: self.k,
-                x1: self.x1.max(0.0).min(ymax),
-                x2: self.x2.max(0.0).min(ymax),
+            LineType::FY => {
+                Line {
+                    line_type: self.line_type,
+                    point: self.point,
+                    k: self.k,
+                    x1: self.x1.max(0.0).min(ymax),
+                    x2: self.x2.max(0.0).min(ymax),
+                }
+            },
+            _ => *self,
+        }
+    }
+
+    pub fn box_axis(xmax: f32, ymax: f32) -> (Line, Line, Line, Line) {
+        (
+            Line{
+                line_type: LineType::FX,
+                point: WeightedPoint{x:0.0,y:0.0,weight:1.0},
+                k: 0.0,
+                x1: 0.0,
+                x2: xmax
+            },
+            Line{
+                line_type: LineType::FX,
+                point: WeightedPoint{x:0.0,y:ymax,weight:1.0},
+                k: 0.0,
+                x1: 0.0,
+                x2: xmax
+            },
+            Line{
+                line_type: LineType::FY,
+                point: WeightedPoint{x:0.0,y:0.0,weight:1.0},
+                k: 0.0,
+                x1: 0.0,
+                x2: ymax
+            },
+            Line{
+                line_type: LineType::FY,
+                point: WeightedPoint{x:0.0,y:xmax,weight:1.0},
+                k: 0.0,
+                x1: 0.0,
+                x2: ymax
+            }
+        )
+    }
+    pub fn to_edges(&self, xmax: f32, ymax: f32) -> Line {
+        let (xaxis1, xaxis2, yaxis1, yaxis2) = Line::box_axis(xmax, ymax);
+        match self.line_type {
+            LineType::FX => {
+                let mut x1 = 0.0f32;
+                let mut x2 = xmax;
+                if self.k > 1.0e-5{
+                    x1 = x1.max(self.f_inverse(0.0));
+                    x2 = x2.min(self.f_inverse(ymax));
+                }
+                if self.k < -1.0e-5{
+                    x1 = x1.max(self.f_inverse(ymax));
+                    x2 = x2.min(self.f_inverse(0.0));
+                }
+                Line {
+                    line_type: self.line_type,
+                    point: self.point,
+                    k: self.k,
+                    x1: x1,
+                    x2: x2,
+                }
+            },
+            LineType::FY => {
+                let mut x1 = 0.0f32;
+                let mut x2 = ymax;
+                if self.k > 1.0e-5{
+                    x1 = x1.max(self.f_inverse(0.0));
+                    x2 = x2.min(self.f_inverse(xmax));
+                }
+                if self.k < -1.0e-5{
+                    x1 = x1.max(self.f_inverse(xmax));
+                    x2 = x2.min(self.f_inverse(0.0));
+                }
+                Line {
+                    line_type: self.line_type,
+                    point: self.point,
+                    k: self.k,
+                    x1: x1,
+                    x2: x2,
+                }
             },
             _ => *self,
         }
@@ -867,6 +794,10 @@ impl Line {
 
     pub fn f(&self, x: f32) -> f32 {
         self.point.y + self.k * (x - self.point.x)
+    }
+
+    pub fn f_inverse(&self, y: f32) -> f32 {
+        self.point.x + (1.0/self.k) * (y - self.point.y)
     }
 
     pub fn as_fx(&self) -> Line {
